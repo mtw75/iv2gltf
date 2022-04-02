@@ -17,7 +17,7 @@ IvGltfWriter::IvGltfWriter(SoSeparator * root): m_root(root)
     m_action->addTriangleCallback(SoShape::getClassTypeId(), triangle_cb, this);    
 }
 
-inline IvGltfWriter::~IvGltfWriter()
+IvGltfWriter::~IvGltfWriter()
 {
     if (m_root) {
         m_root->unref();
