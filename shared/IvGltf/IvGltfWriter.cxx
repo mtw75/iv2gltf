@@ -78,8 +78,12 @@ SoCallbackAction::Response IvGltfWriter::onPreShape(SoCallbackAction * action, c
     m_positions.clear();
     m_normals.clear();
     m_texCoords.clear();
-    m_uvMin = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
-    m_uvMax = {std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
+    float fmax = std::numeric_limits<float>::max();
+    float fmin = std::numeric_limits<float>::min();
+    m_uvMin = { fmax, fmax };
+    m_uvMax = { fmin, fmin };
+    m_posMin = { fmax, fmax, fmax };
+    m_posMax = { fmin, fmin, fmin };
     return SoCallbackAction::CONTINUE;
 }
 
@@ -157,11 +161,11 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
 
     // My viewer requires min/max (shame)
     indexAccessor.minValues = {0};
-    indexAccessor.maxValues = {2};
-    positionAccessor.minValues = {0, 0, 0};
-    positionAccessor.maxValues = {1, 1, 0};
-    normalAccessor.minValues = {0, 1, 0};
-    normalAccessor.maxValues = {0, 1, 0};
+    indexAccessor.maxValues = { (float)m_positions.size()-1 };
+    positionAccessor.minValues = {m_posMin.x, m_posMin.y, m_posMin.z };
+    positionAccessor.maxValues = { m_posMax.x, m_posMax.z, m_posMax.z };
+    normalAccessor.minValues = {-1, -1, -1};
+    normalAccessor.maxValues = {1, 1, 1};
     uvAccessor.minValues = {m_uvMin.u, m_uvMin.v};
     uvAccessor.maxValues = {m_uvMax.u, m_uvMax.v};
     
@@ -191,7 +195,8 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     SbVec2s size;
     int nc = 0;
     const unsigned char* image = action->getTextureImage(size, nc);
-    so = {};
+    so.str("");
+    so.clear();
     so << size[0] << size[1] << " " << nc << " " << image;
 
     SbColor ambient, diffuse, specular, emission;
@@ -328,6 +333,8 @@ void IvGltfWriter::addTriangle(
     for (int j = 0; j < 3; j++) {
         modelMatrix.multVecMatrix(points[j], transformedPoint);
         m_positions.push_back({transformedPoint[0], transformedPoint[1], transformedPoint[2]});
+        m_posMin = { std::min<float>(transformedPoint[0], m_posMin.x), std::min<float>(transformedPoint[1], m_posMin.y),std::min<float>(transformedPoint[2], m_posMin.z) };
+        m_posMax = { std::max<float>(transformedPoint[0], m_posMax.x), std::max<float>(transformedPoint[1], m_posMax.y),std::max<float>(transformedPoint[2], m_posMax.z) };
         modelMatrix.multDirMatrix(normals[j], transformedNormal);
         m_normals.push_back({transformedNormal[0], transformedNormal[1], transformedNormal[2]});
         m_indices.push_back(m_positions.size() - 1);
@@ -335,6 +342,7 @@ void IvGltfWriter::addTriangle(
         m_texCoords.push_back(texUv);
         m_uvMin = {std::min<float>(texUv.u, m_uvMin.u), std::min<float>(texUv.v, m_uvMin.v)};
         m_uvMax = {std::max<float>(texUv.u, m_uvMax.u), std::min<float>(texUv.v, m_uvMax.v)};        
+
         //m_colors.append(colors[j]);
     }
 }

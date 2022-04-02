@@ -49,6 +49,8 @@ protected:
     std::vector<uv> m_texCoords; 
     uv m_uvMin;
     uv m_uvMax;
+    vec3 m_posMin;
+    vec3 m_posMax;
 
 
     std::map<std::string, int> m_materialIndexByMatInfo; 
