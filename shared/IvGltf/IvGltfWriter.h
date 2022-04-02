@@ -39,10 +39,18 @@ protected:
         float y;
         float z;
     };
-    
+    struct uv {
+        float u;
+        float v;
+    };    
 
     std::vector<vec3> m_positions; 
     std::vector<vec3> m_normals; 
+    std::vector<uv> m_texCoords; 
+    uv m_uvMin;
+    uv m_uvMax;
+
+
     std::map<std::string, int> m_materialIndexByMatInfo; 
     std::vector<uint32_t> m_indices;
     tinygltf::Buffer m_buffer;

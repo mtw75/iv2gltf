@@ -15,10 +15,7 @@ message(STATUS "INSTALLED:" ${VCPKG_INSTALLED_DIR})
 install(FILES ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/gtest.dll ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/gtest_main.dll DESTINATION . )
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_DEBUG_POSTFIX=d)
 
-
-add_subdirectory(shared/Coin3d)
 add_subdirectory(shared/IvGltf)
 add_subdirectory(apps/iv2gltf)
 enable_testing()

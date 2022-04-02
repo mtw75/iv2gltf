@@ -28,6 +28,7 @@ if (WIN32)
 
 set(SIMAGE_DLL ${VCPKGDIR}/bin/simage1.dll)
 set(SIMAGE_DEBUG_DLL ${VCPKGDIR}/debug/bin/simage1d.dll)
+target_compile_definitions(SImage INTERFACE -DSIMAGE_DLL )
 set_property(TARGET SImage PROPERTY IMPORTED_LOCATION ${SIMAGE_DLL})
 set_property(TARGET SImage PROPERTY IMPORTED_LOCATION_DEBUG ${SIMAGE_DEBUG_DLL})
 set_property(TARGET SImage PROPERTY IMPORTED_IMPLIB ${VCPKGDIR}/lib/simage1.lib)
