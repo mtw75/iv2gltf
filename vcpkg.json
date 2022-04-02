@@ -1,0 +1,11 @@
+{
+    "name": "iv2gltf",
+    "version-string": "1.0.0",
+  "dependencies": [
+    "coin",
+    "gtest",
+    "tinygltf",
+    "cxxopts"
+  ]
+    
+}
