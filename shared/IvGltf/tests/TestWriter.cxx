@@ -7,8 +7,20 @@
 #include <Inventor/nodes/SoTransform.h>
 #include "IvGltfWriter.h"
 
+TEST(IvGltfWriter, WriteSimpleCube)
+{
+    SoSeparator* s = new SoSeparator;
+    SoMaterial* m1 = new SoMaterial;
+    m1->diffuseColor = SbColor(1, 0, 0);
+    SoCube* c = new SoCube;
+    s->addChild(m1);
+    s->addChild(c);
+ 
+    IvGltfWriter gltf(s);
+    gltf.write("testwriter_simplecube.gltf");
+}
 
-TEST(IvGltfWriter, WriteSimple)
+TEST(IvGltfWriter, WriteSimpleMultiCube)
 {
     SoSeparator* s = new SoSeparator;
     SoMaterial* m1 = new SoMaterial;
@@ -29,7 +41,7 @@ TEST(IvGltfWriter, WriteSimple)
     s->addChild(t);
     s->addChild(c);
     IvGltfWriter gltf(s);
-    gltf.write("test_simple.gltf");
+    gltf.write("testwriter_multicube.gltf");
 }
 
 TEST(IvGltfWriter, WriteTexture)
@@ -38,7 +50,9 @@ TEST(IvGltfWriter, WriteTexture)
     SoMaterial* m1 = new SoMaterial;
     m1->diffuseColor = SbColor(1, 1, 1);
     SoTexture2* t = new SoTexture2;
-    t->filename.setValue("test.png");
+    const unsigned char pixels[2 * 2 * 3] = {};
+    t->image.setValue(SbVec2s(2, 2), 3, pixels);
+    //t->filename.setValue("test.png");
 
     SoCube* c = new SoCube;
     s->addChild(m1);
@@ -46,7 +60,7 @@ TEST(IvGltfWriter, WriteTexture)
     s->addChild(c);
     //Iv3dUtils::save(s, "testOut.iv");
     IvGltfWriter gltf(s);
-    gltf.write("testwriter.gltf"); 
+    gltf.write("testwriter_texture.gltf"); 
     /*
     tinygltf::Model model;
     tinygltf::TinyGLTF ctx;
@@ -62,8 +76,6 @@ TEST(IvGltfWriter, WriteTexture)
 
 int main(int ac, char* av[])
 {
-	
-	
 	testing::InitGoogleTest(&ac, av);
 	SoDB::init();
 	return RUN_ALL_TESTS();

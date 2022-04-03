@@ -2,6 +2,8 @@
 
 #include "tiny_gltf.h"
 #include <sstream>
+#include <iostream>
+
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/nodes/SoShape.h>
 #include <Inventor/SoPrimitiveVertex.h>
@@ -53,8 +55,7 @@ bool IvGltfWriter::write(std::string outputFilename)
     asset.version = "2.0";
     m_model.asset = asset;
     
-    // now buffer is complete 
-    m_model.buffers.push_back(m_buffer);
+    
     // add scene 
     m_model.scenes.push_back(m_scene);
     
@@ -74,6 +75,7 @@ bool IvGltfWriter::write(std::string outputFilename)
 
 SoCallbackAction::Response IvGltfWriter::onPreShape(SoCallbackAction * action, const SoNode * node)
 {
+    m_buffer.data.clear();
     m_indices.clear();
     m_positions.clear();
     m_normals.clear();
@@ -94,11 +96,89 @@ std::string materialHash(SbColor ambient, SbColor diffuse, SbColor specular, SbC
 }
 SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, const SoNode * ivNode)
 {
-    uint32_t currentOffset = m_buffer.data.size();
+    // write buffers vbo 
+    uint32_t currentOffset = 0;// m_buffer.data.size();
     uint32_t indexSize = serialize(m_indices, m_buffer.data, currentOffset+0);
     uint32_t positionSize = serialize(m_positions, m_buffer.data, currentOffset + indexSize);
     uint32_t normalSize = serialize(m_normals, m_buffer.data, currentOffset + indexSize + positionSize);
-    uint32_t uvSize = serialize(m_texCoords, m_buffer.data, currentOffset + indexSize + positionSize + normalSize);
+    uint32_t uvSize = serialize(m_texCoords, m_buffer.data, currentOffset + indexSize + positionSize + normalSize);    
+    m_model.buffers.push_back(m_buffer);
+    int currBufIdx = m_model.buffers.size() - 1;
+
+    // write texure image buffer 
+
+    int imgSize = 0;
+    SbVec2s size;
+    int nc = 0;
+    const unsigned char* image = action->getTextureImage(size, nc);
+    std::ostringstream si;
+    si << size[0] << size[1] << " " << nc;
+    std::cout << si.str() << std::endl;
+    imgSize = size[0] * size[1] *nc;
+
+
+    SbColor ambient, diffuse, specular, emission;
+    float shininess = 0, transparency = 0;
+    action->getMaterial(ambient, diffuse, specular, emission, shininess, transparency);
+    uint32_t materialIdx = -1;
+
+
+
+
+    if (imgSize > 0) {
+        tinygltf::Buffer imgBuffer;
+        std::vector<unsigned char> data((size_t)imgSize);// (ba.begin(), ba.end());
+        imgBuffer.data = data;
+        imgBuffer.name = "imageBuffer";
+        m_model.buffers.push_back(imgBuffer);
+
+        tinygltf::BufferView bufferView;
+        bufferView.buffer = m_model.buffers.size() - 1;
+        bufferView.name = "imageBufferView";
+        bufferView.byteLength = imgSize;
+        m_model.bufferViews.push_back(bufferView);
+
+
+        tinygltf::Image img;
+        img.name = "image";
+        img.mimeType = "image/png";
+        img.bufferView = m_model.bufferViews.size() - 1; 
+        // img.uri = "test.png";
+        m_model.images.push_back(img);
+
+        tinygltf::Sampler sampler;
+        sampler.wrapS = action->getTextureWrapS();
+        sampler.wrapT = action->getTextureWrapT();
+        m_model.samplers.push_back(sampler);
+
+        tinygltf::Texture texture;
+        texture.source = 0;
+        texture.sampler = 0;
+        m_model.textures.push_back(texture);
+
+        tinygltf::Material texmat;
+        texmat.pbrMetallicRoughness.baseColorTexture.index = 0;
+        texmat.pbrMetallicRoughness.metallicFactor = 0.0;
+        texmat.name = "Texture";
+        m_model.materials.push_back(texmat);
+        materialIdx = m_model.materials.size() - 1;
+    }
+    else {
+        std::string matHash = materialHash(ambient, diffuse, specular, emission, shininess, transparency);
+        if (m_materialIndexByMatInfo.contains(matHash)) {
+            materialIdx = m_materialIndexByMatInfo[matHash];
+        }
+        else {
+            tinygltf::Material tmat;
+            tmat.pbrMetallicRoughness.baseColorFactor = { diffuse[0], diffuse[1], diffuse[2], 1.0f };
+            tmat.doubleSided = true;
+            
+            m_model.materials.push_back(tmat);
+            materialIdx = m_model.materials.size()-1;
+            m_materialIndexByMatInfo[matHash] = materialIdx;
+        }
+    }
+
 
     // Build the "views" into the "buffer"
     tinygltf::BufferView indexBufferView {};
@@ -106,22 +186,22 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     tinygltf::BufferView normalBufferView {};
     tinygltf::BufferView uvBufferView {};
 
-    indexBufferView.buffer = 0;
+    indexBufferView.buffer = currBufIdx;
     indexBufferView.byteLength = indexSize;
     indexBufferView.byteOffset = currentOffset + 0;
     indexBufferView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
 
-    positionBufferView.buffer = 0;
+    positionBufferView.buffer = currBufIdx;
     positionBufferView.byteLength = positionSize;
     positionBufferView.byteOffset = currentOffset + indexSize;
     positionBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
 
-    normalBufferView.buffer = 0;
+    normalBufferView.buffer = currBufIdx;
     normalBufferView.byteLength = normalSize;
     normalBufferView.byteOffset = currentOffset + indexSize + positionSize;
     normalBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
 
-    uvBufferView.buffer = 0;
+    uvBufferView.buffer = currBufIdx;
     uvBufferView.byteLength = uvSize;
     uvBufferView.byteOffset = currentOffset + indexSize + positionSize + normalSize;
     uvBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
@@ -163,7 +243,7 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     indexAccessor.minValues = {0};
     indexAccessor.maxValues = { (float)m_positions.size()-1 };
     positionAccessor.minValues = {m_posMin.x, m_posMin.y, m_posMin.z };
-    positionAccessor.maxValues = { m_posMax.x, m_posMax.z, m_posMax.z };
+    positionAccessor.maxValues = { m_posMax.x, m_posMax.y, m_posMax.z };
     normalAccessor.minValues = {-1, -1, -1};
     normalAccessor.maxValues = {1, 1, 1};
     uvAccessor.minValues = {m_uvMin.u, m_uvMin.v};
@@ -176,6 +256,11 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     m_model.accessors.push_back(normalAccessor);
     m_model.accessors.push_back(uvAccessor);
     
+
+    
+    
+
+    //---
 
     // add mesh 
     tinygltf::Mesh mesh {};
@@ -192,74 +277,19 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
 
     // now material 
     // Create a simple material
-    SbVec2s size;
-    int nc = 0;
-    const unsigned char* image = action->getTextureImage(size, nc);
-    so.str("");
-    so.clear();
-    so << size[0] << size[1] << " " << nc << " " << image;
+    
 
-    SbColor ambient, diffuse, specular, emission;
-    float shininess = 0, transparency = 0;           
-    action->getMaterial(ambient, diffuse, specular, emission, shininess, transparency);
-    uint32_t materialIdx = -1;
-    std::string matHash = materialHash(ambient, diffuse, specular, emission, shininess, transparency);
-    if (m_materialIndexByMatInfo.contains(matHash)) {
-        materialIdx = m_materialIndexByMatInfo[matHash];         
-    } else {
-        tinygltf::Material tmat;
-        tmat.pbrMetallicRoughness.baseColorFactor = {diffuse[0], diffuse[1], diffuse[2], 1.0f};
-        tmat.doubleSided = true;
-        materialIdx = m_model.materials.size();
-        m_model.materials.push_back(tmat);
-        m_materialIndexByMatInfo[matHash] = materialIdx;        
+    
+    
+    
+
+    
+    
+
+    
+    if (materialIdx != -1) {
+        triMeshPrim.material = materialIdx;
     }
-    
-
-    
-    
-    
-
-    
-    int imgSize = 0;
-    tinygltf::Buffer buffer;
-    std::vector<unsigned char> data;// (ba.begin(), ba.end());
-    buffer.data = data;
-    buffer.name = "imageBuffer";
-    m_model.buffers.push_back(buffer);
-
-    tinygltf::BufferView bufferView;
-    bufferView.buffer = 1;
-    bufferView.name = "imageBufferView";
-    bufferView.byteLength = imgSize;
-    m_model.bufferViews.push_back(bufferView);
-
-
-    tinygltf::Image img;
-    img.name = "image";
-    img.mimeType = "image/png";
-    img.bufferView = bufIdx + 4;
-    // img.uri = "test.png";
-    m_model.images.push_back(img);
-
-    tinygltf::Sampler sampler;
-    sampler.wrapS = action->getTextureWrapS();
-    sampler.wrapT = action->getTextureWrapT();
-    m_model.samplers.push_back(sampler);
-
-    tinygltf::Texture texture;
-    texture.source = 0;
-    texture.sampler = 0;
-    m_model.textures.push_back(texture);
-
-    tinygltf::Material texmat;
-    texmat.pbrMetallicRoughness.baseColorTexture.index = 0;
-    texmat.pbrMetallicRoughness.metallicFactor = 0.0;
-    texmat.name = "Texture";
-    m_model.materials.push_back(texmat);
-
-    
-    triMeshPrim.material = m_model.materials.size() - 1;
     mesh.primitives.push_back(triMeshPrim);
 
     m_model.meshes.push_back(mesh);
@@ -339,9 +369,10 @@ void IvGltfWriter::addTriangle(
         m_normals.push_back({transformedNormal[0], transformedNormal[1], transformedNormal[2]});
         m_indices.push_back(m_positions.size() - 1);
         uv texUv = {textureCoords[j][0], textureCoords[j][1]};
+        
         m_texCoords.push_back(texUv);
         m_uvMin = {std::min<float>(texUv.u, m_uvMin.u), std::min<float>(texUv.v, m_uvMin.v)};
-        m_uvMax = {std::max<float>(texUv.u, m_uvMax.u), std::min<float>(texUv.v, m_uvMax.v)};        
+        m_uvMax = {std::max<float>(texUv.u, m_uvMax.u), std::max<float>(texUv.v, m_uvMax.v)};        
 
         //m_colors.append(colors[j]);
     }
