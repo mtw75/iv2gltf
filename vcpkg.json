@@ -5,6 +5,7 @@
     "coin",  
     "tinygltf",
     "cxxopts",
+	"libpng", 
 	"pngpp"
   ]
     

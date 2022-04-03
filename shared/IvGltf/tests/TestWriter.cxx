@@ -6,6 +6,8 @@
 #include <Inventor/nodes/SoCube.h>
 #include <Inventor/nodes/SoTransform.h>
 #include "IvGltfWriter.h"
+#define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
+#include <png++/png.hpp>
 
 TEST(IvGltfWriter, WriteSimpleCube)
 {
@@ -49,29 +51,36 @@ TEST(IvGltfWriter, WriteTexture)
     SoSeparator* s = new SoSeparator;
     SoMaterial* m1 = new SoMaterial;
     m1->diffuseColor = SbColor(1, 1, 1);
+
+    png::image< png::rgb_pixel > image("test.png");    
+    int sx = image.get_width();
+    int sy = image.get_height();
+    int nc = 3; 
+    std::vector<unsigned char> data((size_t)sy* sx*nc);
+    
+    for (png::uint_32 y = 0; y < sy; ++y)
+    {
+        for (png::uint_32 x = 0; x < sx; ++x)
+        {
+            auto p = image.get_pixel(x,y);
+            data[nc * (y * sx + x)] = p.red;
+            data[nc * (y * sx + x)+1] = p.green;
+            data[nc * (y * sx + x)+2] = p.blue;            
+        }
+    }
     SoTexture2* t = new SoTexture2;
-    const unsigned char pixels[2 * 2 * 3] = {};
-    t->image.setValue(SbVec2s(2, 2), 3, pixels);
+    
+    t->image.setValue(SbVec2s(sx, sy), 3, data.data());
     //t->filename.setValue("test.png");
 
     SoCube* c = new SoCube;
     s->addChild(m1);
     s->addChild(t);
     s->addChild(c);
-    //Iv3dUtils::save(s, "testOut.iv");
+    
     IvGltfWriter gltf(s);
     gltf.write("testwriter_texture.gltf"); 
-    /*
-    tinygltf::Model model;
-    tinygltf::TinyGLTF ctx;
-    std::string err;
-    std::string warn;
-
-    bool ret = ctx.LoadASCIIFromFile(&model, &err, &warn, "testwriter.gltf");
-    if (!err.empty()) {
-        std::cerr << err << std::endl;
-    }
-    */
+    
 }
 
 int main(int ac, char* av[])

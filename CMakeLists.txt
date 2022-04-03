@@ -32,8 +32,15 @@ if(WIN32)
 	
 	set(SIMAGE_DLL ${VCPKGDIR}/bin/simage1.dll)
 	set(SIMAGE_DEBUG_DLL ${VCPKGDIR}/debug/bin/simage1d.dll)
-	install(FILES ${COIN4_DLL} ${SIMAGE_DLL} DESTINATION . CONFIGURATIONS Release MinSizeRel) 
-	install(FILES ${COIN4_DEBUG_DLL} ${SIMAGE_DEBUG_DLL} DESTINATION . COMPONENT ${IPO_INSTALL_COMPONENT} CONFIGURATIONS Debug)
+
+	set(PNG_DLL ${VCPKGDIR}/bin/libpng16.dll)
+	set(PNG_DEBUG_DLL ${VCPKGDIR}/debug/bin/libpng16d.dll)
+
+	set(ZLIB_DLL ${VCPKGDIR}/bin/zlib1.dll)
+	set(ZLIB_DEBUG_DLL ${VCPKGDIR}/debug/bin/zlibd1.dll)
+
+	install(FILES ${COIN4_DLL} ${SIMAGE_DLL} ${PNG_DLL} ${ZLIB_DLL} DESTINATION . CONFIGURATIONS Release MinSizeRel) 
+	install(FILES ${COIN4_DEBUG_DLL} ${SIMAGE_DEBUG_DLL} ${PNG_DEBUG_DLL} ${ZLIB_DEBUG_DLL} DESTINATION . COMPONENT ${IPO_INSTALL_COMPONENT} CONFIGURATIONS Debug)
 endif()
 
 add_subdirectory(shared/IvGltf)

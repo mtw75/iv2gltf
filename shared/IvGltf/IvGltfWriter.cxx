@@ -1,3 +1,4 @@
+
 #include "IvGltfWriter.h"
 
 #include "tiny_gltf.h"
@@ -7,7 +8,8 @@
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/nodes/SoShape.h>
 #include <Inventor/SoPrimitiveVertex.h>
-
+#define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
+#include <png++/png.hpp>
 
 IvGltfWriter::IvGltfWriter(SoSeparator * root): m_root(root)
 {
@@ -110,12 +112,12 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     int imgSize = 0;
     SbVec2s size;
     int nc = 0;
-    const unsigned char* image = action->getTextureImage(size, nc);
+    const unsigned char* ivImg = action->getTextureImage(size, nc);
     std::ostringstream si;
     si << size[0] << size[1] << " " << nc;
     std::cout << si.str() << std::endl;
     imgSize = size[0] * size[1] *nc;
-
+    
 
     SbColor ambient, diffuse, specular, emission;
     float shininess = 0, transparency = 0;
@@ -126,8 +128,23 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
 
 
     if (imgSize > 0) {
+        png::image< png::rgb_pixel > image(size[0], size[1]);
+        for (png::uint_32 y = 0; y < image.get_height(); ++y)
+        {
+            for (png::uint_32 x = 0; x < image.get_width(); ++x)
+            {
+                const unsigned char* d = ivImg + (y * size[0] + x) * nc;
+                image.set_pixel(x, y, png::rgb_pixel(d[0], d[1], d[2]));
+            }
+        }
+        
+        std::ostringstream sout; 
+        image.write_stream(sout);
+        //image.write(std::string("testout.png"));
         tinygltf::Buffer imgBuffer;
-        std::vector<unsigned char> data((size_t)imgSize);// (ba.begin(), ba.end());
+        std::string s = sout.str();
+        std::vector<unsigned char> data(s.begin(), s.end()); //(size_t)imgSize);// (ba.begin(), ba.end());
+        
         imgBuffer.data = data;
         imgBuffer.name = "imageBuffer";
         m_model.buffers.push_back(imgBuffer);
@@ -135,7 +152,7 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
         tinygltf::BufferView bufferView;
         bufferView.buffer = m_model.buffers.size() - 1;
         bufferView.name = "imageBufferView";
-        bufferView.byteLength = imgSize;
+        bufferView.byteLength = imgBuffer.data.size();
         m_model.bufferViews.push_back(bufferView);
 
 
