@@ -1,5 +1,4 @@
-#cmake_minimum_required(VERSION 3.22)
- cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.22)
 
 if(CMAKE_TOOLCHAIN_FILE)
 	message(STATUS "Using vcpkg from ${CMAKE_TOOLCHAIN_FILE}")
@@ -12,7 +11,9 @@ endif()
 PROJECT(iv2gltf)
 
 message(STATUS "INSTALLED:" ${VCPKG_INSTALLED_DIR})
+if (WIN32)
 install(FILES ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/gtest.dll ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/gtest_main.dll DESTINATION . )
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 
