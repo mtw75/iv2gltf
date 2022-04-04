@@ -6,7 +6,9 @@
 #include <Inventor/nodes/SoCube.h>
 #include <Inventor/nodes/SoTransform.h>
 #include "IvGltfWriter.h"
+#ifdef _WIN32
 #define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
+#endif 
 #include <png++/png.hpp>
 
 TEST(IvGltfWriter, WriteSimpleCube)

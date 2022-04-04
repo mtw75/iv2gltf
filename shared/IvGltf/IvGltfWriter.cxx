@@ -8,7 +8,9 @@
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/nodes/SoShape.h>
 #include <Inventor/SoPrimitiveVertex.h>
+#ifdef _WIN32
 #define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
+#endif 
 #include <png++/png.hpp>
 
 IvGltfWriter::IvGltfWriter(SoSeparator * root): m_root(root)
