@@ -9,3 +9,12 @@
 #else      /* defined (_WIN32) */
 #    define IVGLTF_EXPORT
 #endif
+#include <string>
+class SoSeparator; 
+
+class IVGLTF_EXPORT IvGltf {
+public:
+    static bool writeFile(std::string filename, SoSeparator* root, bool isBinary);
+    static SoSeparator* readFile(std::string filename);
+    
+};

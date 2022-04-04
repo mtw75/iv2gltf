@@ -1,6 +1,7 @@
 #include <Inventor/SoDB.h>
 #include <iostream>
 #include <cxxopts.hpp>
+#include "IvGltfWriter.h"
 
 int main(int argc, char* argv[])
 {
@@ -9,7 +10,7 @@ int main(int argc, char* argv[])
 		//("d,debug", "Enable debugging") // a bool parameter
 		//("o,integer", "Int param", cxxopts::value<int>())
 		("o,gltf", "gltf file", cxxopts::value<std::string>()->default_value(""))
-		("i,iv", "inventor file", cxxopts::value<std::string>())
+		("i,iv", "inventor file", cxxopts::value<std::string>())		
 		("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
 		("h,help", "Print usage")
 		;
@@ -30,8 +31,11 @@ int main(int argc, char* argv[])
 	}
 
 	SoDB::init();
-	if (result.count("")) {
-
+	if (result.count("i") && result.count("o") ){
+		if (SoSeparator* s = IvGltf::readFile(result["i"].as<std::string>())) {
+			IvGltfWriter w(s);
+			w.write(result["o"].as<std::string>().c_str());
+		}		
 	}
 	return EXIT_SUCCESS; 
 }

@@ -115,9 +115,9 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     SbVec2s size;
     int nc = 0;
     const unsigned char* ivImg = action->getTextureImage(size, nc);
-    std::ostringstream si;
-    si << size[0] << size[1] << " " << nc;
-    std::cout << si.str() << std::endl;
+    //std::ostringstream si;
+    //si << size[0] << size[1] << " " << nc;
+    //std::cout << si.str() << std::endl;
     imgSize = size[0] * size[1] *nc;
     
 

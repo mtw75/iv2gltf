@@ -82,6 +82,7 @@ TEST(IvGltfWriter, WriteTexture)
     
     IvGltfWriter gltf(s);
     gltf.write("testwriter_texture.gltf"); 
+    IvGltf::writeFile("testwriter_texture.iv", s, true);
     
 }
 
