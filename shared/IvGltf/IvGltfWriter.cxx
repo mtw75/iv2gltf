@@ -21,6 +21,7 @@ IvGltfWriter::IvGltfWriter(SoSeparator * root): m_root(root)
     m_action->addPreCallback(SoShape::getClassTypeId(), preShapeCB, this);
     m_action->addPostCallback(SoShape::getClassTypeId(), postShapeCB, this);    
     m_action->addTriangleCallback(SoShape::getClassTypeId(), triangle_cb, this);    
+    m_action->addLineSegmentCallback(SoShape::getClassTypeId(), line_cb, this);
 }
 
 IvGltfWriter::~IvGltfWriter()
@@ -35,6 +36,9 @@ IvGltfWriter::~IvGltfWriter()
 
 template <typename T> uint32_t serialize(std::vector<T> const & from, std::vector<uint8_t> & to, std::size_t offset)
 {
+    if (from.empty()) {
+        return 0;
+    }
     uint32_t bytesToSerialize = sizeof(T) * static_cast<uint32_t>(from.size());
 
     to.resize(to.size() + bytesToSerialize);
@@ -394,5 +398,38 @@ void IvGltfWriter::addTriangle(
         m_uvMax = {std::max<float>(texUv.u, m_uvMax.u), std::max<float>(texUv.v, m_uvMax.v)};        
 
         //m_colors.append(colors[j]);
+    }
+}
+
+void IvGltfWriter::line_cb(
+    void* userdata,
+    SoCallbackAction* action,
+    const SoPrimitiveVertex* vertex1,
+    const SoPrimitiveVertex* vertex2)
+{
+    IvGltfWriter* that = (IvGltfWriter*)userdata;
+    const SbMatrix modelMatrix = action->getModelMatrix();
+    that->addLineSegment(vertex1->getPoint(), vertex2->getPoint(), modelMatrix);
+}
+
+void IvGltfWriter::addLineSegment(
+    const SbVec3f& vecA,
+    const SbVec3f& vecB,
+    const SbMatrix& modelMatrix)
+{
+    for (const SbVec3f& point : { vecA, vecB }) {
+        SbVec3f transformedPoint;
+        modelMatrix.multVecMatrix(point, transformedPoint);
+        m_positions.push_back({ transformedPoint[0], transformedPoint[1], transformedPoint[2] });
+
+        m_posMin = {
+                std::min<float>(transformedPoint[0], m_posMin.x),
+                std::min<float>(transformedPoint[1], m_posMin.y),
+                std::min<float>(transformedPoint[2], m_posMin.z) };
+        m_posMax = {
+                std::max<float>(transformedPoint[0], m_posMax.x),
+                std::max<float>(transformedPoint[1], m_posMax.y),
+                std::max<float>(transformedPoint[2], m_posMax.z) };
+        m_indices.push_back(m_positions.size() - 1);
     }
 }
