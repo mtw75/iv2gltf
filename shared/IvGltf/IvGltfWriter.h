@@ -10,6 +10,8 @@ class SoCallbackAction;
 class SoPrimitiveVertex;
 class SoNode; 
 
+enum class GltfWritingMode { UNKNOWN, TRIANGLE, LINE };
+
 class IVGLTF_EXPORT IvGltfWriter {
 public:
     IvGltfWriter(SoSeparator * root);
@@ -66,4 +68,5 @@ protected:
     tinygltf::Scene m_scene;
     SoSeparator * m_root=nullptr;
     bool m_writeBinary = false; 
+    GltfWritingMode m_drawingMode{ GltfWritingMode::UNKNOWN };
 };

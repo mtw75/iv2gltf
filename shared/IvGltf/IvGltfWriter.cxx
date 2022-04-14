@@ -114,14 +114,10 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     int currBufIdx = m_model.buffers.size() - 1;
 
     // write texure image buffer 
-
     int imgSize = 0;
     SbVec2s size;
     int nc = 0;
     const unsigned char* ivImg = action->getTextureImage(size, nc);
-    //std::ostringstream si;
-    //si << size[0] << size[1] << " " << nc;
-    //std::cout << si.str() << std::endl;
     imgSize = size[0] * size[1] *nc;
     
 
@@ -129,8 +125,6 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
     float shininess = 0, transparency = 0;
     action->getMaterial(ambient, diffuse, specular, emission, shininess, transparency);
     uint32_t materialIdx = -1;
-
-
 
 
     if (imgSize > 0) {
@@ -149,7 +143,7 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
         //image.write(std::string("testout.png"));
         tinygltf::Buffer imgBuffer;
         std::string s = sout.str();
-        std::vector<unsigned char> data(s.begin(), s.end()); //(size_t)imgSize);// (ba.begin(), ba.end());
+        std::vector<unsigned char> data(s.begin(), s.end());
         
         imgBuffer.data = data;
         imgBuffer.name = "imageBuffer";
@@ -202,114 +196,115 @@ SoCallbackAction::Response IvGltfWriter::onPostShape(SoCallbackAction * action, 
         }
     }
 
-
-    // Build the "views" into the "buffer"
-    tinygltf::BufferView indexBufferView {};
-    tinygltf::BufferView positionBufferView {};
-    tinygltf::BufferView normalBufferView {};
-    tinygltf::BufferView uvBufferView {};
-
-    indexBufferView.buffer = currBufIdx;
-    indexBufferView.byteLength = indexSize;
-    indexBufferView.byteOffset = currentOffset + 0;
-    indexBufferView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
-
-    positionBufferView.buffer = currBufIdx;
-    positionBufferView.byteLength = positionSize;
-    positionBufferView.byteOffset = currentOffset + indexSize;
-    positionBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-
-    normalBufferView.buffer = currBufIdx;
-    normalBufferView.byteLength = normalSize;
-    normalBufferView.byteOffset = currentOffset + indexSize + positionSize;
-    normalBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-
-    uvBufferView.buffer = currBufIdx;
-    uvBufferView.byteLength = uvSize;
-    uvBufferView.byteOffset = currentOffset + indexSize + positionSize + normalSize;
-    uvBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+    // add mesh 
+    tinygltf::Mesh mesh{};
+    tinygltf::Primitive triMeshPrim{};
+    std::ostringstream so;
+    so << "Mesh_" << m_model.meshes.size();
+    mesh.name = so.str();
 
     uint32_t bufIdx = m_model.bufferViews.size();
-    m_model.bufferViews.push_back(indexBufferView);
-    m_model.bufferViews.push_back(positionBufferView);
-    m_model.bufferViews.push_back(normalBufferView);
-    m_model.bufferViews.push_back(uvBufferView);
+    uint32_t accessorIdx = m_model.accessors.size();
 
-    // Now we need "accessors" to know how to interpret each of those "views"
-    tinygltf::Accessor indexAccessor {};
-    tinygltf::Accessor positionAccessor {};
-    tinygltf::Accessor normalAccessor {};
-    tinygltf::Accessor uvAccessor {};
+    {
+        // Build the "views" into the "buffer"
+        tinygltf::BufferView indexBufferView{};
+        indexBufferView.buffer = currBufIdx;
+        indexBufferView.byteLength = indexSize;
+        indexBufferView.byteOffset = currentOffset + 0;
+        indexBufferView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
 
-    
-    indexAccessor.bufferView = bufIdx + 0;
-    indexAccessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
-    indexAccessor.count = static_cast<uint32_t>(m_indices.size());
-    indexAccessor.type = TINYGLTF_TYPE_SCALAR;
+        m_model.bufferViews.push_back(indexBufferView);
 
-    positionAccessor.bufferView = bufIdx + 1;
-    positionAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-    positionAccessor.count = static_cast<uint32_t>(m_positions.size());
-    positionAccessor.type = TINYGLTF_TYPE_VEC3;
+        tinygltf::Accessor indexAccessor{};
+        indexAccessor.bufferView = bufIdx++;
+        indexAccessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        indexAccessor.count = static_cast<uint32_t>(m_indices.size());
+        indexAccessor.type = TINYGLTF_TYPE_SCALAR;
+        indexAccessor.minValues = { 0 };
+        indexAccessor.maxValues = { (float)m_positions.size() - 1 };
+        m_model.accessors.push_back(indexAccessor);
+        triMeshPrim.indices = accessorIdx++;                    // accessor 0
 
-    normalAccessor.bufferView = bufIdx + 2;
-    normalAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-    normalAccessor.count = static_cast<uint32_t>(m_normals.size());
-    normalAccessor.type = TINYGLTF_TYPE_VEC3;
+    }
+    {
 
-    uvAccessor.bufferView = bufIdx + 3;
-    uvAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
-    uvAccessor.count = static_cast<uint32_t>(m_texCoords.size());
-    uvAccessor.type = TINYGLTF_TYPE_VEC2;
+        tinygltf::BufferView positionBufferView{};
+        positionBufferView.buffer = currBufIdx;
+        positionBufferView.byteLength = positionSize;
+        positionBufferView.byteOffset = currentOffset + indexSize;
+        positionBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
 
-    // My viewer requires min/max (shame)
-    indexAccessor.minValues = {0};
-    indexAccessor.maxValues = { (float)m_positions.size()-1 };
-    positionAccessor.minValues = {m_posMin.x, m_posMin.y, m_posMin.z };
-    positionAccessor.maxValues = { m_posMax.x, m_posMax.y, m_posMax.z };
-    normalAccessor.minValues = {-1, -1, -1};
-    normalAccessor.maxValues = {1, 1, 1};
-    uvAccessor.minValues = {m_uvMin.u, m_uvMin.v};
-    uvAccessor.maxValues = {m_uvMax.u, m_uvMax.v};
-    
+        m_model.bufferViews.push_back(positionBufferView);
 
-    uint32_t accessorIdx = m_model.accessors.size(); 
-    m_model.accessors.push_back(indexAccessor);
-    m_model.accessors.push_back(positionAccessor);
-    m_model.accessors.push_back(normalAccessor);
-    m_model.accessors.push_back(uvAccessor);
-    
+        tinygltf::Accessor positionAccessor{};
+        positionAccessor.bufferView = bufIdx++;
+        positionAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        positionAccessor.count = static_cast<uint32_t>(m_positions.size());
+        positionAccessor.type = TINYGLTF_TYPE_VEC3;
+        positionAccessor.minValues = { m_posMin.x, m_posMin.y, m_posMin.z };
+        positionAccessor.maxValues = { m_posMax.x, m_posMax.y, m_posMax.z };
+        m_model.accessors.push_back(positionAccessor);
+        triMeshPrim.attributes["POSITION"] = accessorIdx++;   // accessor 1
 
-    
-    
+    }
+    if (!m_normals.empty()) {
+        tinygltf::BufferView normalBufferView{};
+        normalBufferView.buffer = currBufIdx;
+        normalBufferView.byteLength = normalSize;
+        normalBufferView.byteOffset = currentOffset + indexSize + positionSize;
+        normalBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+
+        m_model.bufferViews.push_back(normalBufferView);
+
+        tinygltf::Accessor normalAccessor{};
+        normalAccessor.bufferView = bufIdx++;
+        normalAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        normalAccessor.count = static_cast<uint32_t>(m_normals.size());
+        normalAccessor.type = TINYGLTF_TYPE_VEC3;
+        normalAccessor.minValues = { -1, -1, -1 };
+        normalAccessor.maxValues = { 1, 1, 1 };
+        m_model.accessors.push_back(normalAccessor);
+        triMeshPrim.attributes["NORMAL"] = accessorIdx++;       // accessor 2
+
+
+    }
+    if (!m_texCoords.empty()) {
+        tinygltf::BufferView uvBufferView{};
+        uvBufferView.buffer = currBufIdx;
+        uvBufferView.byteLength = uvSize;
+        uvBufferView.byteOffset = currentOffset + indexSize + positionSize + normalSize;
+        uvBufferView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+        m_model.bufferViews.push_back(uvBufferView);
+
+        tinygltf::Accessor uvAccessor{};
+        uvAccessor.bufferView = bufIdx++;
+        uvAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        uvAccessor.count = static_cast<uint32_t>(m_texCoords.size());
+        uvAccessor.type = TINYGLTF_TYPE_VEC2;
+        uvAccessor.minValues = { m_uvMin.u, m_uvMin.v };
+        uvAccessor.maxValues = { m_uvMax.u, m_uvMax.v };
+        m_model.accessors.push_back(uvAccessor);
+
+        triMeshPrim.attributes["TEXCOORD_0"] = accessorIdx++; // accessor 3
+
+    }
 
     //---
 
-    // add mesh 
-    tinygltf::Mesh mesh {};
-    tinygltf::Primitive triMeshPrim {};
-    std::ostringstream so;
-    so << "Mesh_" << m_model.meshes.size(); 
-    mesh.name = so.str();
-    triMeshPrim.indices = accessorIdx + 0;                    // accessor 0
-    triMeshPrim.attributes["POSITION"] = accessorIdx + 1;   // accessor 1
-    triMeshPrim.attributes["NORMAL"] = accessorIdx + 2;       // accessor 2
-    triMeshPrim.attributes["TEXCOORD_0"] = accessorIdx + 3; // accessor 3
-    triMeshPrim.mode = TINYGLTF_MODE_TRIANGLES;
-//    triMeshPrim.mode = TINYGLTF_MODE_LINE;
+    if (m_drawingMode == GltfWritingMode::TRIANGLE) {
+        triMeshPrim.mode = TINYGLTF_MODE_TRIANGLES;
+    }
+    else if (m_drawingMode == GltfWritingMode::LINE) {
+        triMeshPrim.mode = TINYGLTF_MODE_LINE;
+    }
+    else {
+        std::cerr << "IvGltf unknown drawing mode";
+    }
 
     // now material 
     // Create a simple material
-    
-
-    
-    
-    
-
-    
-    
-
-    
+   
     if (materialIdx != -1) {
         triMeshPrim.material = materialIdx;
     }
@@ -380,7 +375,8 @@ void IvGltfWriter::addTriangle(
         uint32_t * colors,
         const SbMatrix & modelMatrix)
 {
-    
+    m_drawingMode = GltfWritingMode::TRIANGLE;
+
     SbVec3f transformedPoint, transformedNormal;
 
     for (int j = 0; j < 3; j++) {
@@ -417,6 +413,8 @@ void IvGltfWriter::addLineSegment(
     const SbVec3f& vecB,
     const SbMatrix& modelMatrix)
 {
+    m_drawingMode = GltfWritingMode::LINE;
+
     for (const SbVec3f& point : { vecA, vecB }) {
         SbVec3f transformedPoint;
         modelMatrix.multVecMatrix(point, transformedPoint);
