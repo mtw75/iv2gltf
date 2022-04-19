@@ -10,6 +10,8 @@ class SoCallbackAction;
 class SoPrimitiveVertex;
 class SoNode; 
 
+enum class GltfWritingMode { UNKNOWN, TRIANGLE, LINE };
+
 class IVGLTF_EXPORT IvGltfWriter {
 public:
     IvGltfWriter(SoSeparator * root);
@@ -25,7 +27,13 @@ public:
             const SoPrimitiveVertex * v1,
             const SoPrimitiveVertex * v2,
             const SoPrimitiveVertex * v3);
+    static void line_cb(
+        void* userdata,
+        SoCallbackAction* action,
+        const SoPrimitiveVertex* v1,
+        const SoPrimitiveVertex* v2);
     void addTriangle(SbVec3f * vtx, SbVec3f * ntx, SbVec4f * txx, uint32_t * colors, const SbMatrix & mm);
+    void addLineSegment(const SbVec3f& vecA, const SbVec3f& vecB, const SbMatrix& modelMatrix);
     void setWriteBinary(bool isBinary)
     {
         m_writeBinary = isBinary;
@@ -60,4 +68,5 @@ protected:
     tinygltf::Scene m_scene;
     SoSeparator * m_root=nullptr;
     bool m_writeBinary = false; 
+    GltfWritingMode m_drawingMode{ GltfWritingMode::UNKNOWN };
 };

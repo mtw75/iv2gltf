@@ -5,6 +5,7 @@
 #include <Inventor/nodes/SoTexture2.h>
 #include <Inventor/nodes/SoCube.h>
 #include <Inventor/nodes/SoTransform.h>
+#include <Inventor/nodes/SoLineSet.h>
 #include "IvGltfWriter.h"
 #ifdef _WIN32
 #define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
@@ -84,6 +85,29 @@ TEST(IvGltfWriter, WriteTexture)
     gltf.write("testwriter_texture.gltf"); 
     IvGltf::writeFile("testwriter_texture.iv", s, true);
     
+}
+
+TEST(IvGltfWriter, WriteSimpleLineset)
+{
+    SoSeparator* s = new SoSeparator;
+    SoLineSet* ls = new SoLineSet;
+    SoMaterial* m = new SoMaterial;
+    SoVertexProperty* vp = new SoVertexProperty();
+    vp->vertex.set1Value(0, 0, 0, 0);
+    vp->vertex.set1Value(1, 1, 0, 0);
+    vp->vertex.set1Value(2, 1, 1, 0);
+    vp->vertex.set1Value(3, 0, 1, 0);
+    vp->vertex.set1Value(4, 0, 0, 0);
+
+    m->diffuseColor = SbColor(1, 0, 0);
+    ls->vertexProperty = vp;
+
+    s->addChild(m);
+    s->addChild(ls);
+
+    IvGltfWriter gltf(s);
+    gltf.write("testwriter_lineset.gltf");
+    IvGltf::writeFile("testwriter_lineset.iv", s, true);
 }
 
 int main(int ac, char* av[])
