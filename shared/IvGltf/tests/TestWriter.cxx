@@ -23,6 +23,8 @@ TEST(IvGltfWriter, WriteSimpleCube)
  
     IvGltfWriter gltf(s);
     gltf.write("testwriter_simplecube.gltf");
+    gltf.setWriteBinary(true);
+    gltf.write("testwriter_simplecube.glb");
 }
 
 TEST(IvGltfWriter, WriteSimpleMultiCube)
@@ -47,6 +49,8 @@ TEST(IvGltfWriter, WriteSimpleMultiCube)
     s->addChild(c);
     IvGltfWriter gltf(s);
     gltf.write("testwriter_multicube.gltf");
+    gltf.setWriteBinary(true);
+    gltf.write("testwriter_multicube.glb");
 }
 
 TEST(IvGltfWriter, WriteTexture)
@@ -82,7 +86,9 @@ TEST(IvGltfWriter, WriteTexture)
     s->addChild(c);
     
     IvGltfWriter gltf(s);
-    gltf.write("testwriter_texture.gltf"); 
+    gltf.write("testwriter_texture.gltf");
+    gltf.setWriteBinary(true);
+    gltf.write("testwriter_texture.glb"); 
     IvGltf::writeFile("testwriter_texture.iv", s, true);
     
 }
@@ -107,6 +113,8 @@ TEST(IvGltfWriter, WriteSimpleLineset)
 
     IvGltfWriter gltf(s);
     gltf.write("testwriter_lineset.gltf");
+    gltf.setWriteBinary(true);
+    gltf.write("testwriter_lineset.glb");
     IvGltf::writeFile("testwriter_lineset.iv", s, true);
 }
 
