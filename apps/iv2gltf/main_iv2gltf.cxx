@@ -36,7 +36,9 @@ int main(int argc, char* argv[])
 		if (SoSeparator* s = IvGltf::readFile(result["i"].as<std::string>())) {
 			IvGltfWriter w(s);
 			w.setWriteBinary(result["b"].as<bool>());
-			w.write(result["o"].as<std::string>().c_str());
+			if (!w.write(result["o"].as<std::string>().c_str())) {
+				return EXIT_FAILURE;
+			}
 		}
 		else {
 			return EXIT_FAILURE;

@@ -69,15 +69,14 @@ bool IvGltfWriter::write(std::string outputFilename)
     
     // Save it to a file
     tinygltf::TinyGLTF gltf;
-    gltf.WriteGltfSceneToFile(
+    return gltf.WriteGltfSceneToFile(
             &m_model,
             outputFilename,
             true,   // embedImages
             true,   // embedBuffers
             true,   // pretty print
             m_writeBinary); // write binary
-    
-    return false;
+
 }
 
 
