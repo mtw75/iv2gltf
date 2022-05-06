@@ -37,7 +37,10 @@ int main(int argc, char* argv[])
 			IvGltfWriter w(s);
 			w.setWriteBinary(result["b"].as<bool>());
 			w.write(result["o"].as<std::string>().c_str());
-		}		
+		}
+		else {
+			return EXIT_FAILURE;
+		}
 	}
 	return EXIT_SUCCESS; 
 }
