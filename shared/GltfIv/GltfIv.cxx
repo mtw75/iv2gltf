@@ -1,5 +1,8 @@
 #include "GltfIv.h"
 
+#include <Inventor/actions/SoWriteAction.h>
+#include <Inventor/SoOutput.h>
+
 #include <iostream>
 
 std::optional<tinygltf::Model> GltfIv::read(std::string filename) 
@@ -35,4 +38,17 @@ std::optional<tinygltf::Model> GltfIv::read(std::string filename)
     }
 
     return model;
+}
+
+bool GltfIv::write(std::string filename, SoSeparator * root, bool isBinary)
+{
+    SoOutput out;
+    if (!out.openFile(filename.c_str())) {
+        return false;
+    }
+    SoWriteAction wa(&out);
+    out.setBinary(isBinary);
+    wa.apply(root);
+    out.closeFile();
+    return true;
 }
