@@ -1,3 +1,5 @@
+#include <spdlog/spdlog.h>
+
 #include "GltfIvWriter.h"
 
 #include <cxxopts.hpp>
@@ -22,7 +24,7 @@ int main(int argc, char * argv[])
         result = options.parse(argc, argv);
     }
     catch (const cxxopts::OptionParseException & x) {
-        std::cerr << "error: " << x.what() << '\n';
+        spdlog::error("error parsing command line options: {}", x.what());
         std::cout << options.help() << std::endl;
         return EXIT_FAILURE;
     }
@@ -32,28 +34,41 @@ int main(int argc, char * argv[])
         return EXIT_SUCCESS;
     }
 
-    if (result.count("i") && result.count("o")) {
+    if (!result.count("i")) {
+        spdlog::error("missing command line option 'i'");
+        std::cout << options.help() << std::endl;
+        return EXIT_FAILURE;
+    }
 
-        const std::string inputFilename{ result["i"].as<std::string>() };
+    if (!result.count("o")) {
+        spdlog::error("missing command line option 'o'");
+        std::cout << options.help() << std::endl;
+        return EXIT_FAILURE;
+    }
 
-        std::optional<tinygltf::Model> maybeGltfModel{ GltfIv::read(inputFilename) };
-
-        if (maybeGltfModel.has_value()) {
-
-            SoDB::init();
-
-            GltfIvWriter writer{std::move(maybeGltfModel.value())};
-
-            const std::string outputFilename{ result["o"].as<std::string>() };
-            const bool writeBinary{ result["b"].as<bool>() };
-
-            if (!writer.write(outputFilename, writeBinary)) {
-                return EXIT_FAILURE;
-            }
+    SoDB::init();
+    
+    const std::string inputFilename{ result["i"].as<std::string>() };
+    const std::string outputFilename{ result["o"].as<std::string>() };
+    const bool writeBinary{ result["b"].as<bool>() };
+    
+    std::optional<tinygltf::Model> maybeGltfModel{ GltfIv::read(inputFilename) };
+    
+    if (maybeGltfModel.has_value()) {
+        
+        GltfIvWriter writer{std::move(maybeGltfModel.value())};
+        
+        if (writer.write(outputFilename, writeBinary)) {
+            spdlog::info("successfully converted {} to {}", inputFilename, outputFilename);
+            return EXIT_SUCCESS;
         }
         else {
+            spdlog::warn("failed to convert {} to {}", inputFilename, outputFilename);
             return EXIT_FAILURE;
         }
+    } 
+    else {
+        spdlog::warn("failed to read {}", inputFilename);
+        return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
