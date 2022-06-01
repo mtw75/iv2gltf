@@ -14,11 +14,11 @@ GltfIvWriter::~GltfIvWriter()
     }
 }
 
-bool GltfIvWriter::write(std::string filename)
+bool GltfIvWriter::write(std::string filename, bool writeBinary)
 {
     if (!m_ivModel) {
         return false;
     }
 
-    return GltfIv::write(filename, m_ivModel, false);
+    return GltfIv::write(filename, m_ivModel, writeBinary);
 }

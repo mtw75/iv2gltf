@@ -13,6 +13,7 @@ int main(int argc, char * argv[])
     options.add_options()
         ("i,gltf", "input gltf file", cxxopts::value<std::string>())
         ("o,iv", "output open inventor file", cxxopts::value<std::string>())
+        ("b,binary", "write binary", cxxopts::value<bool>()->default_value("false"))
         ("h,help", "print usage")
         ;
 
@@ -44,8 +45,9 @@ int main(int argc, char * argv[])
             GltfIvWriter writer{std::move(maybeGltfModel.value())};
 
             const std::string outputFilename{ result["o"].as<std::string>() };
+            const bool writeBinary{ result["b"].as<bool>() };
 
-            if (!writer.write(outputFilename)) {
+            if (!writer.write(outputFilename, writeBinary)) {
                 return EXIT_FAILURE;
             }
         }
