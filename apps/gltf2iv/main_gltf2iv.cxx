@@ -1,7 +1,6 @@
-#include <spdlog/spdlog.h>
-
 #include "GltfIvWriter.h"
 
+#include <spdlog/spdlog.h>
 #include <cxxopts.hpp>
 #include <tiny_gltf.h>
 #include <Inventor/SoDB.h>

@@ -1,5 +1,7 @@
 #pragma once 
 
+#include <spdlog/spdlog.h>
+
 #include <tiny_gltf.h>
 
 #define TINYGLTF_IMPLEMENTATION
