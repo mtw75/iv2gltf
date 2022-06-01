@@ -2,9 +2,12 @@
 
 #include "GltfIv.h"
 
-class GLTFIV_EXPORT GltfIvWriter {
+class GltfIvWriter {
 public:
-    GltfIvWriter(tinygltf::Model && gltf_model);
+    GltfIvWriter(tinygltf::Model && gltfModel);
     ~GltfIvWriter();
     bool write(std::string filename);
+
+private:
+    const tinygltf::Model m_gltfModel;
 };

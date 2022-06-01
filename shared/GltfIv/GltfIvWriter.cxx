@@ -1,6 +1,7 @@
 #include "GltfIvWriter.h"
 
-GltfIvWriter::GltfIvWriter(tinygltf::Model && gltf_model)
+GltfIvWriter::GltfIvWriter(tinygltf::Model && gltfModel)
+    : m_gltfModel{ std::move(gltfModel) }
 {
 
 }

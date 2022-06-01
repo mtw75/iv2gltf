@@ -9,7 +9,7 @@ set(SRC
 	GltfIvWriter.cxx
 )
 
-add_library(GltfIv SHARED ${SRC})
+add_library(GltfIv ${SRC})
 
 target_link_libraries(GltfIv Coin::Coin)
 
@@ -17,5 +17,3 @@ target_include_directories(GltfIv
 	PUBLIC ${TINYGLTF_INCLUDE_DIRS}
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
-
-INSTALL(TARGETS GltfIv RUNTIME DESTINATION .)
