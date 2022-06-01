@@ -16,5 +16,9 @@ GltfIvWriter::~GltfIvWriter()
 
 bool GltfIvWriter::write(std::string filename)
 {
-    return false;
+    if (!m_ivModel) {
+        return false;
+    }
+
+    return GltfIv::write(filename, m_ivModel, false);
 }
