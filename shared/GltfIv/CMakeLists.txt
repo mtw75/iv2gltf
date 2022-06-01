@@ -17,3 +17,13 @@ target_include_directories(GltfIv
 	PUBLIC ${TINYGLTF_INCLUDE_DIRS}
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+target_compile_options(GltfIv 
+	PRIVATE
+     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
+          -Wall -Werror
+		  >
+     $<$<CXX_COMPILER_ID:MSVC>:
+          /W4 /WX
+		  >
+)
