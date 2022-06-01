@@ -10,4 +10,5 @@ public:
 
 private:
     const tinygltf::Model m_gltfModel;
+    SoSeparator * m_ivModel{ nullptr };
 };
