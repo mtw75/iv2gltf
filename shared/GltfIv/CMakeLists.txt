@@ -14,7 +14,7 @@ add_library(GltfIv SHARED ${SRC})
 target_link_libraries(GltfIv Coin::Coin)
 
 target_include_directories(GltfIv 
-	PRIVATE ${TINYGLTF_INCLUDE_DIRS}
+	PUBLIC ${TINYGLTF_INCLUDE_DIRS}
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
