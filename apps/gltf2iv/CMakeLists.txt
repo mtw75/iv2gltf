@@ -1,0 +1,5 @@
+set(CMAKE_CXX_STANDARD 20)
+find_package(cxxopts REQUIRED)
+add_executable(gltf2iv main_gltf2iv.cxx)
+target_link_libraries(gltf2iv GltfIv cxxopts::cxxopts)
+install(TARGETS gltf2iv DESTINATION .)
