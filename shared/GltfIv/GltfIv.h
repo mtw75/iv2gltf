@@ -17,5 +17,6 @@
 
 class GLTFIV_EXPORT GltfIv
 {
+public:
     static std::optional<tinygltf::Model> read(std::string filename);
 };
