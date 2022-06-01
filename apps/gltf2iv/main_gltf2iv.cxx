@@ -16,6 +16,7 @@ int main(int argc, char * argv[])
         ("i,gltf", "input gltf file", cxxopts::value<std::string>())
         ("o,iv", "output open inventor file", cxxopts::value<std::string>())
         ("b,binary", "write binary", cxxopts::value<bool>()->default_value("false"))
+        ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
         ("h,help", "print usage")
         ;
 
@@ -46,12 +47,23 @@ int main(int argc, char * argv[])
         return EXIT_FAILURE;
     }
 
+    const bool verbose{ result["v"].as<bool>() };
+
+    if (verbose) {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    else {
+        spdlog::set_level(spdlog::level::warn);
+    }
+
     SoDB::init();
     
     const std::string inputFilename{ result["i"].as<std::string>() };
     const std::string outputFilename{ result["o"].as<std::string>() };
     const bool writeBinary{ result["b"].as<bool>() };
-    
+
+    spdlog::info("converting {} to {} (binary: {}) ", inputFilename, outputFilename, writeBinary);
+
     std::optional<tinygltf::Model> maybeGltfModel{ GltfIv::read(inputFilename) };
     
     if (maybeGltfModel.has_value()) {
