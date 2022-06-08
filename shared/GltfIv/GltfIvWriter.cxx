@@ -244,16 +244,11 @@ SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int
     int32_t * posIndex = coordIndex.startEditing();
 
     for (size_t i = 0; i + 3 < indices.size(); i += 4) {
-        *posIndex = m_positionIndexMap[indices[i]];
-        posIndex++;
-        *posIndex = m_positionIndexMap[indices[i + 1]];
-        posIndex++;
-        *posIndex = m_positionIndexMap[indices[i + 2]];
-        posIndex++;
-        *posIndex = m_positionIndexMap[indices[i + 3]];
-        posIndex++;
-        *posIndex = -1;
-        posIndex++;
+        *posIndex++ = m_positionIndexMap[indices[i]];
+        *posIndex++ = m_positionIndexMap[indices[i + 1]];
+        *posIndex++ = m_positionIndexMap[indices[i + 2]];
+        *posIndex++ = m_positionIndexMap[indices[i + 3]];
+        *posIndex++ = -1;
     }
     coordIndex.finishEditing();
     triangles->coordIndex = coordIndex;
