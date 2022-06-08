@@ -143,7 +143,7 @@ void GltfIvWriter::ensureAccessorType(const tinygltf::Accessor & accessor, int a
     }
 }
 
-std::vector<std::array<float, 3>> GltfIvWriter::positions(const tinygltf::Primitive & primitive)
+std::vector<GltfIvWriter::position_t> GltfIvWriter::positions(const tinygltf::Primitive & primitive)
 {
     spdlog::trace("retrieve positions from primitive");
 
@@ -151,10 +151,10 @@ std::vector<std::array<float, 3>> GltfIvWriter::positions(const tinygltf::Primit
 
     ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
 
-    return accessorContents<std::array<float, 3>>(accessor);
+    return accessorContents<position_t>(accessor);
 }
 
-std::vector<std::array<float, 3>> GltfIvWriter::normals(const tinygltf::Primitive & primitive)
+std::vector<GltfIvWriter::normal_t> GltfIvWriter::normals(const tinygltf::Primitive & primitive)
 {
     spdlog::trace("retrieve normals from primitive");
 
@@ -162,10 +162,10 @@ std::vector<std::array<float, 3>> GltfIvWriter::normals(const tinygltf::Primitiv
 
     ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
 
-    return accessorContents<std::array<float, 3>>(accessor);
+    return accessorContents<normal_t>(accessor);
 }
 
-std::vector<std::array<float, 2>> GltfIvWriter::textureCoordinates(const tinygltf::Primitive & primitive)
+std::vector<GltfIvWriter::texture_coordinate_t> GltfIvWriter::textureCoordinates(const tinygltf::Primitive & primitive)
 {
     spdlog::trace("retrieve texture coordinates from primitive");
 
@@ -173,7 +173,7 @@ std::vector<std::array<float, 2>> GltfIvWriter::textureCoordinates(const tinyglt
 
     ensureAccessorType(accessor, TINYGLTF_TYPE_VEC2);
 
-    return accessorContents<std::array<float, 2>>(accessor);
+    return accessorContents<texture_coordinate_t>(accessor);
 }
 
 std::vector<int> GltfIvWriter::indices(const tinygltf::Primitive & primitive)
