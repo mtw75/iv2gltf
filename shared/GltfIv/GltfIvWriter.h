@@ -38,13 +38,10 @@ private:
     template<class T> 
     std::vector<T> accessorContents(const tinygltf::Accessor & accessor)
     {
-        std::vector<T> contents;
-        contents.resize(accessor.count);
-
         const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(accessor.bufferView);
         const tinygltf::Buffer & buffer = m_gltfModel.buffers.at(bufferView.buffer);
-        const int byteStride{ accessor.ByteStride(bufferView) };
 
+        const int byteStride{ accessor.ByteStride(bufferView) };
         if (byteStride != sizeof(T)) {
             throw std::invalid_argument(
                 std::format(
@@ -54,6 +51,9 @@ private:
                 )
             );
         }
+
+        std::vector<T> contents;
+        contents.resize(accessor.count);
 
         std::memcpy(&contents[0], &buffer.data[bufferView.byteOffset], bufferView.byteLength);
 
