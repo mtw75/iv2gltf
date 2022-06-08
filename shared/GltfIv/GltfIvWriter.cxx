@@ -126,11 +126,11 @@ bool GltfIvWriter::convertPrimitive(const tinygltf::Primitive & primitive)
 
 bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primitive)
 {
-    spdlog::trace("converting triangles primitive");    
+    spdlog::trace("converting triangles primitive");
 
     const std::vector<position_t> positions{ this->positions(primitive) };
     const std::vector<normal_t> normals{ this->normals(primitive) };
-    const std::vector<int> indices{ this->indices(primitive) };
+    const std::vector<index_t> indices{ this->indices(primitive) };
 
     m_ivModel->addChild(convertMaterial(primitive.material));
 
@@ -140,8 +140,12 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
 
     m_ivModel->addChild(materialBinding);
 
-    m_ivModel->addChild(convertPositions(positions, indices));
-    
+    const std::vector<position_t> uniquePositions{ unique<position_t>(positions) };
+
+    m_ivModel->addChild(convertPositions(uniquePositions));
+
+    updatePositionIndexMap(uniquePositions, positions, indices);
+
     SoNormalBinding * normalBinding = new SoNormalBinding;
 
     normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
@@ -153,6 +157,38 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
     m_ivModel->addChild(convertTriangles(indices, normals));
 
     return true;
+}
+
+int GltfIvWriter::indexTypeSize(const tinygltf::Primitive & primitive) const
+{
+    const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(primitive.indices);
+    const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(accessor.bufferView);
+
+    return accessor.ByteStride(bufferView);
+}
+
+std::vector<GltfIvWriter::index_t> GltfIvWriter::indices(const tinygltf::Primitive & primitive)
+{
+    spdlog::trace("retrieve indices from primitive");
+
+    const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(primitive.indices);
+
+    ensureAccessorType(accessor, TINYGLTF_TYPE_SCALAR);
+
+    const int indexTypeSize{ this->indexTypeSize(primitive) };
+
+    switch (indexTypeSize){
+    case 1:
+        return indices<uint8_t>(accessor);
+    case 2:
+        return indices<uint16_t>(accessor);
+    case 4:
+        return indices<uint32_t>(accessor);
+    case 8:
+        return indices<uint64_t>(accessor);
+    default:
+        throw std::invalid_argument(std::format("unsupported index size of {}", indexTypeSize));
+    }
 }
 
 void GltfIvWriter::ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const
@@ -195,74 +231,39 @@ std::vector<GltfIvWriter::texture_coordinate_t> GltfIvWriter::textureCoordinates
     return accessorContents<texture_coordinate_t>(accessor);
 }
 
-std::vector<int> GltfIvWriter::indices(const tinygltf::Primitive & primitive)
-{
-    spdlog::trace("retrieve indices from primitive");
-
-    const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(primitive.indices);
-
-    ensureAccessorType(accessor, TINYGLTF_TYPE_SCALAR);
-
-    return accessorContents<int>(accessor);
-}
-
-size_t GltfIvWriter::countUnqiueIndexedPositions(const std::vector<position_t> & positions, const std::vector<int> & indices)
-{
-    std::set<position_t> indexedPositions{ };
-
-    for (int index : indices) {
-        indexedPositions.insert(positions.at(index));
-    }
-
-    return indexedPositions.size();
-}
-
-SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & positions, const std::vector<int> & indices)
+SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & positions)
 {
     SoCoordinate3 * coords = new SoCoordinate3;
-    coords->point.setNum(static_cast<int>(countUnqiueIndexedPositions(positions, indices)));
+
+    coords->point.setNum(static_cast<int>(positions.size()));
     SbVec3f * ivPointsPtr = coords->point.startEditing();
     
-    std::map<position_t, int32_t> mappedIndexByPosition;
-
-    int32_t nextMappedIndex{ static_cast<int32_t>(m_positionIndexMap.size()) };
-
-    for (int32_t index : indices) {
-
-        if (m_positionIndexMap.contains(index)) {
-            continue;
-        }
-
-        const position_t & position{ positions.at(index) };
-
-        if (!mappedIndexByPosition.contains(position)) {
-            mappedIndexByPosition[position] = nextMappedIndex++;
-
-            float * ivPointPtr = (float *) ivPointsPtr;
-            ivPointPtr[0] = position[0];
-            ivPointPtr[1] = position[1];
-            ivPointPtr[2] = position[2];
-            ivPointsPtr++;
-        }
-
-        m_positionIndexMap[index] = mappedIndexByPosition[position];
-    }
+    std::memcpy(ivPointsPtr, &positions[0], sizeof(SbVec3f) * positions.size());
 
     coords->point.finishEditing();
 
     return coords;
 }
 
+void GltfIvWriter::updatePositionIndexMap(const std::vector<position_t> & uniquePositions, const std::vector<position_t> & positions, const std::vector<index_t> & indices)
+{
+    std::map<position_t, int32_t> positionMap{};
+
+    for (int32_t i = 0; i < uniquePositions.size(); ++i) {
+        positionMap[uniquePositions[i]] = i;
+    }
+
+    for (const index_t & index : indices) {
+        m_positionIndexMap[index] = static_cast<uint64_t>(positionMap[positions[index]]);
+    }
+}
+
 SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
 {
     SoNormal * normalNode = new SoNormal;
 
-    std::set<normal_t> uniqueNormals{ };
-
-    for (const normal_t & normal : normals) {
-        uniqueNormals.insert(normal);
-    }
-
+    std::vector<normal_t> uniqueNormals{ unique<normal_t>(normals) };
+    
     SoMFVec3f normalVectors{};
     normalVectors.setNum(static_cast<int>(uniqueNormals.size()));
 
@@ -284,7 +285,7 @@ SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
     return normalNode;
 }
 
-SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int> & indices, const std::vector<normal_t> & normals)
+SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<index_t> & indices, const std::vector<normal_t> & normals)
 { 
     SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
