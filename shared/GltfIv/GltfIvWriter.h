@@ -3,6 +3,7 @@
 #include "GltfIv.h"
 
 #include <Inventor/nodes/SoCoordinate3.h>
+#include <Inventor/nodes/SoNormal.h>
 #include <Inventor/nodes/SoIndexedTriangleStripSet.h>
 
 #include <map>
@@ -62,9 +63,12 @@ private:
 
     size_t countUnqiueIndexedPositions(const std::vector<position_t> & positions, const std::vector<int> & indices);
     SoCoordinate3 * convertPositions(const std::vector<position_t> & positions, const std::vector<int> & indices);
-    SoIndexedTriangleStripSet * convertTriangles(const std::vector<int> & indices);
+    SoNormal * convertNormals(const std::vector<normal_t> & normals);
+    SoIndexedTriangleStripSet * convertTriangles(const std::vector<int> & indices, const std::vector<normal_t> & normals);
+
     
     const tinygltf::Model m_gltfModel;
     SoSeparator * m_ivModel{ nullptr };
     std::unordered_map<int, int32_t> m_positionIndexMap;
+    std::map<normal_t, int32_t> m_normalMap;
 };

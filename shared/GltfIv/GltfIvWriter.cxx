@@ -7,6 +7,7 @@ GltfIvWriter::GltfIvWriter(tinygltf::Model && gltfModel)
     : m_gltfModel{ std::move(gltfModel) }
     , m_ivModel{ new SoSeparator() }
     , m_positionIndexMap{ }
+    , m_normalMap{ }
 {
     m_ivModel->ref();
 }
@@ -128,10 +129,20 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
     spdlog::trace("converting triangles primitive");    
 
     const std::vector<position_t> positions{ this->positions(primitive) };
+    const std::vector<normal_t> normals{ this->normals(primitive) };
     const std::vector<int> indices{ this->indices(primitive) };
 
     m_ivModel->addChild(convertPositions(positions, indices));
-    m_ivModel->addChild(convertTriangles(indices));
+    
+    SoNormalBinding * normalBinding = new SoNormalBinding;
+
+    normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
+
+    m_ivModel->addChild(normalBinding);
+
+    m_ivModel->addChild(convertNormals(normals));
+
+    m_ivModel->addChild(convertTriangles(indices, normals));
 
     return true;
 }
@@ -234,24 +245,68 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & p
     return coords;
 }
 
-SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int> & indices)
+SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
 {
+    SoNormal * normalNode = new SoNormal;
+
+    std::set<normal_t> uniqueNormals{ };
+
+    for (const normal_t & normal : normals) {
+        uniqueNormals.insert(normal);
+    }
+
+    SoMFVec3f normalVectors{};
+    normalVectors.setNum(static_cast<int>(uniqueNormals.size()));
+
+    SbVec3f * pos = normalVectors.startEditing();
+
+    int32_t nextNormalIndex{ static_cast<int32_t>(m_normalMap.size()) } ;
+    for (const normal_t & normal : uniqueNormals) {
+
+        if (!m_normalMap.contains(normal)) {
+            m_normalMap[normal] = nextNormalIndex++;
+            *pos++ = SbVec3f(normal[0], normal[1], normal[2]);
+        }
+    }
+
+    normalVectors.finishEditing();
+
+    normalNode->vector = normalVectors;
+
+    return normalNode;
+}
+
+SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int> & indices, const std::vector<normal_t> & normals)
+{ 
     SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
-    SoMFInt32 coordIndex{};
-    coordIndex.setNum(static_cast<int>(indices.size() + indices.size() / 4U));
+    const int indexSize{ static_cast<int>(indices.size() + indices.size() / 4U)  };
 
-    int32_t * posIndex = coordIndex.startEditing();
+    SoMFInt32 coordIndex{};
+    SoMFInt32 normalIndex{};
+
+    coordIndex.setNum(indexSize);
+    normalIndex.setNum(indexSize);
+
+    int32_t * coordIndexPosition = coordIndex.startEditing();
+    int32_t * normalIndexPosition = normalIndex.startEditing();
 
     for (size_t i = 0; i + 3 < indices.size(); i += 4) {
-        *posIndex++ = m_positionIndexMap[indices[i]];
-        *posIndex++ = m_positionIndexMap[indices[i + 1]];
-        *posIndex++ = m_positionIndexMap[indices[i + 2]];
-        *posIndex++ = m_positionIndexMap[indices[i + 3]];
-        *posIndex++ = -1;
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t k = i + j;
+            *coordIndexPosition++ = m_positionIndexMap[indices[k]];
+            *normalIndexPosition++ = m_normalMap[normals[k]];
+        }
+        
+        *coordIndexPosition++ = -1;
+        *normalIndexPosition++ = -1;
     }
     coordIndex.finishEditing();
+    normalIndex.finishEditing();
+
     triangles->coordIndex = coordIndex;
+    triangles->normalIndex = normalIndex;
 
     return triangles;
 }
