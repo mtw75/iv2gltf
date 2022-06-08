@@ -204,11 +204,11 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & p
     coords->point.setNum(static_cast<int>(countUnqiueIndexedPositions(positions, indices)));
     SbVec3f * ivPointsPtr = coords->point.startEditing();
     
-    std::map<position_t, size_t> mappedIndexByPosition;
+    std::map<position_t, int32_t> mappedIndexByPosition;
 
-    size_t nextMappedIndex{ m_positionIndexMap.size() };
+    int32_t nextMappedIndex{ static_cast<int32_t>(m_positionIndexMap.size()) };
 
-    for (int index : indices) {
+    for (int32_t index : indices) {
 
         if (m_positionIndexMap.contains(index)) {
             continue;
@@ -244,13 +244,13 @@ SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int
     int32_t * posIndex = coordIndex.startEditing();
 
     for (size_t i = 0; i + 3 < indices.size(); i += 4) {
-        *posIndex = static_cast<int32_t>(m_positionIndexMap[indices[i]]);
+        *posIndex = m_positionIndexMap[indices[i]];
         posIndex++;
-        *posIndex = static_cast<int32_t>(m_positionIndexMap[indices[i + 1]]);
+        *posIndex = m_positionIndexMap[indices[i + 1]];
         posIndex++;
-        *posIndex = static_cast<int32_t>(m_positionIndexMap[indices[i + 2]]);
+        *posIndex = m_positionIndexMap[indices[i + 2]];
         posIndex++;
-        *posIndex = static_cast<int32_t>(m_positionIndexMap[indices[i + 3]]);
+        *posIndex = m_positionIndexMap[indices[i + 3]];
         posIndex++;
         *posIndex = -1;
         posIndex++;

@@ -66,5 +66,5 @@ private:
     
     const tinygltf::Model m_gltfModel;
     SoSeparator * m_ivModel{ nullptr };
-    std::unordered_map<int, size_t> m_positionIndexMap;
+    std::unordered_map<int, int32_t> m_positionIndexMap;
 };
