@@ -132,6 +132,14 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
     const std::vector<normal_t> normals{ this->normals(primitive) };
     const std::vector<int> indices{ this->indices(primitive) };
 
+    m_ivModel->addChild(convertMaterial(primitive.material));
+
+    SoMaterialBinding * materialBinding = new SoMaterialBinding;
+
+    materialBinding->value = SoMaterialBinding::Binding::OVERALL;
+
+    m_ivModel->addChild(materialBinding);
+
     m_ivModel->addChild(convertPositions(positions, indices));
     
     SoNormalBinding * normalBinding = new SoNormalBinding;
@@ -291,12 +299,14 @@ SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int
     int32_t * coordIndexPosition = coordIndex.startEditing();
     int32_t * normalIndexPosition = normalIndex.startEditing();
 
-    for (size_t i = 0; i + 3 < indices.size(); i += 4) {
-        for (size_t j = 0; j < 4; ++j)
+    constexpr size_t triangle_strip_size{ 4U };
+
+    for (size_t i = 0; i + triangle_strip_size -1 < indices.size(); i += triangle_strip_size) {
+        for (size_t j = 0; j < triangle_strip_size; ++j)
         {
-            size_t k = i + j;
-            *coordIndexPosition++ = m_positionIndexMap[indices[k]];
-            *normalIndexPosition++ = m_normalMap[normals[k]];
+            const size_t k = i + j;
+            *coordIndexPosition++ = m_positionIndexMap[indices.at(k)];
+            *normalIndexPosition++ = m_normalMap[normals.at(k)];
         }
         
         *coordIndexPosition++ = -1;
@@ -305,8 +315,39 @@ SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<int
     coordIndex.finishEditing();
     normalIndex.finishEditing();
 
+    triangles->materialIndex = 0;
     triangles->coordIndex = coordIndex;
     triangles->normalIndex = normalIndex;
 
     return triangles;
+}
+
+SoMaterial * GltfIvWriter::convertMaterial(int materialIndex)
+{
+    return convertMaterial(m_gltfModel.materials.at(materialIndex));
+}
+
+SbColor GltfIvWriter::diffuseColor(const tinygltf::Material & material)
+{
+    const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
+    SbColor color{
+        static_cast<float>(baseColorFactor[0]),
+        static_cast<float>(baseColorFactor[1]),
+        static_cast<float>(baseColorFactor[2])};
+    
+    return color;
+}
+
+SoMaterial * GltfIvWriter::convertMaterial(const tinygltf::Material & material)
+{
+    SoMaterial * result = new SoMaterial;
+
+    result->ambientColor = SbColor{0.2f, 0.2f, 0.2f};
+    result->diffuseColor = diffuseColor(material);
+    result->specularColor = SbColor{ 0.0f, 0.0f, 0.0f };
+    result->emissiveColor = SbColor{ 0.0f, 0.0f, 0.0f };
+    result->shininess = 0.2f;
+    result->transparency = 0.0f;
+
+    return result;
 }

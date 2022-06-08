@@ -5,6 +5,7 @@
 #include <Inventor/nodes/SoCoordinate3.h>
 #include <Inventor/nodes/SoNormal.h>
 #include <Inventor/nodes/SoIndexedTriangleStripSet.h>
+#include <Inventor/nodes/SoMaterial.h>
 
 #include <map>
 
@@ -35,6 +36,9 @@ private:
     std::vector<normal_t> normals(const tinygltf::Primitive & primitive);
     std::vector<texture_coordinate_t> textureCoordinates(const tinygltf::Primitive & primitive);
     std::vector<int> indices(const tinygltf::Primitive & primitive);
+    SoMaterial * convertMaterial(int materialIndex);
+    SbColor diffuseColor(const tinygltf::Material & material);
+    SoMaterial * convertMaterial(const tinygltf::Material & material);
 
     template<class T> 
     std::vector<T> accessorContents(const tinygltf::Accessor & accessor)
