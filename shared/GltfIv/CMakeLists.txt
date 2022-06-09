@@ -3,6 +3,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
+find_package(Microsoft.GSL CONFIG REQUIRED)
 
 set(SRC
 	GltfIv.h
@@ -13,7 +14,7 @@ set(SRC
 
 add_library(GltfIv ${SRC})
 
-target_link_libraries(GltfIv Coin::Coin fmt::fmt-header-only spdlog::spdlog_header_only)
+target_link_libraries(GltfIv Coin::Coin fmt::fmt-header-only spdlog::spdlog_header_only Microsoft.GSL::GSL)
 
 target_include_directories(GltfIv 
 	PUBLIC ${TINYGLTF_INCLUDE_DIRS}

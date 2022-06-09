@@ -8,7 +8,8 @@
 	"libpng",
     "pngpp",
     "fmt",
-    "spdlog"
+    "spdlog",
+    "ms-gsl"
   ]
     
 }
