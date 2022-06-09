@@ -7,6 +7,8 @@
 #include <Inventor/nodes/SoIndexedTriangleStripSet.h>
 #include <Inventor/nodes/SoMaterial.h>
 
+#include <gsl/gsl>
+
 #include <map>
 #include <variant>
 
@@ -24,15 +26,16 @@ private:
     using indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
     using index_map_t = std::variant<std::unordered_map<uint8_t, int32_t>, std::unordered_map<int8_t, int32_t>, std::unordered_map<uint16_t, int32_t>, std::unordered_map<int16_t, int32_t>, std::unordered_map<uint32_t, int32_t>, std::unordered_map<float, int32_t>>;
     using normal_map_t = std::map<normal_t, int32_t>;
+    using iv_root_t = gsl::not_null<SoSeparator *>;
 
-    void convertModel();
-    void convertScene(SoSeparator * root, const tinygltf::Scene & scene);
-    void convertNodes(SoSeparator * root, const std::vector<int> & nodeIndices);
-    void convertNode(SoSeparator * root, const tinygltf::Node & node);
-    void convertMesh(SoSeparator * root, const tinygltf::Mesh & mesh);
-    void convertPrimitives(SoSeparator * root, const std::vector<tinygltf::Primitive> & primitives);
-    void convertPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive);
-    void convertTrianglesPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive);
+    void convertModel(iv_root_t root);
+    void convertScene(iv_root_t root, const tinygltf::Scene & scene);
+    void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices);
+    void convertNode(iv_root_t root, const tinygltf::Node & node);
+    void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh);
+    void convertPrimitives(iv_root_t root, const std::vector<tinygltf::Primitive> & primitives);
+    void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
+    void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
 
     void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const;
     std::vector<position_t> positions(const tinygltf::Primitive & primitive);

@@ -25,7 +25,7 @@ bool GltfIvWriter::write(std::string filename, bool writeBinary)
     }
 
     try {
-        convertModel();
+        convertModel(m_ivModel);
         return GltfIv::write(filename, m_ivModel, writeBinary);
     }
     catch (std::exception exception) {
@@ -34,20 +34,21 @@ bool GltfIvWriter::write(std::string filename, bool writeBinary)
     }
 }
 
-void GltfIvWriter::convertModel()
+void GltfIvWriter::convertModel(iv_root_t root)
 {
     spdlog::trace("converting gltf model to open inventor model");
+
     std::for_each(
         m_gltfModel.scenes.cbegin(), 
         m_gltfModel.scenes.cend(), 
-        [this](const tinygltf::Scene & scene) 
+        [this, root](const tinygltf::Scene & scene)
         {
-            convertScene(m_ivModel, scene);
+            convertScene(root, scene);
         }
     );
 }
 
-void GltfIvWriter::convertScene(SoSeparator * root, const tinygltf::Scene & scene)
+void GltfIvWriter::convertScene(iv_root_t root, const tinygltf::Scene & scene)
 {
     spdlog::trace("converting scene with name '{}'", scene.name);
 
@@ -58,7 +59,7 @@ void GltfIvWriter::convertScene(SoSeparator * root, const tinygltf::Scene & scen
     root->addChild(sceneRoot);
 }
 
-void GltfIvWriter::convertNodes(SoSeparator * root, const std::vector<int> & nodeIndices)
+void GltfIvWriter::convertNodes(iv_root_t root, const std::vector<int> & nodeIndices)
 {
     std::for_each(
         nodeIndices.cbegin(),
@@ -70,7 +71,7 @@ void GltfIvWriter::convertNodes(SoSeparator * root, const std::vector<int> & nod
     );
 }
 
-void GltfIvWriter::convertNode(SoSeparator * root, const tinygltf::Node & node)
+void GltfIvWriter::convertNode(iv_root_t root, const tinygltf::Node & node)
 {
     spdlog::trace("converting node with name '{}'", node.name);
 
@@ -84,14 +85,14 @@ void GltfIvWriter::convertNode(SoSeparator * root, const tinygltf::Node & node)
     root->addChild(nodeRoot);
 }
 
-void GltfIvWriter::convertMesh(SoSeparator * root, const tinygltf::Mesh & mesh)
+void GltfIvWriter::convertMesh(iv_root_t root, const tinygltf::Mesh & mesh)
 {
     spdlog::trace("converting mesh with name '{}'", mesh.name);
 
     convertPrimitives(root, mesh.primitives);
 }
 
-void GltfIvWriter::convertPrimitives(SoSeparator * root, const std::vector<tinygltf::Primitive> & primitives)
+void GltfIvWriter::convertPrimitives(iv_root_t root, const std::vector<tinygltf::Primitive> & primitives)
 {
     std::for_each(
         primitives.cbegin(),
@@ -103,7 +104,7 @@ void GltfIvWriter::convertPrimitives(SoSeparator * root, const std::vector<tinyg
     );
 }
 
-void GltfIvWriter::convertPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive)
+void GltfIvWriter::convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive)
 {
     spdlog::trace("converting primitive with mode {}", primitive.mode);
 
@@ -116,7 +117,7 @@ void GltfIvWriter::convertPrimitive(SoSeparator * root, const tinygltf::Primitiv
     }
 }
 
-void GltfIvWriter::convertTrianglesPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive)
+void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive)
 {
     spdlog::trace("converting triangles primitive");
 
