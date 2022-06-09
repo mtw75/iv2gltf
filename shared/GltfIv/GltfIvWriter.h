@@ -14,9 +14,37 @@
 
 class GltfIvWriter {
 public:
-    GltfIvWriter(tinygltf::Model && gltfModel);
-    ~GltfIvWriter();
-    bool write(std::string filename, bool writeBinary);
+    GltfIvWriter(tinygltf::Model && gltfModel) 
+        : m_gltfModel{ std::move(gltfModel) }
+        , m_ivModel{ nullptr }
+    {
+    }
+
+    ~GltfIvWriter()
+    {
+        if (m_ivModel) {
+            m_ivModel->unref();
+        }
+    }
+
+    bool write(std::string filename, bool writeBinary)
+    {
+        try {
+            if (m_ivModel) {
+                m_ivModel->unref();
+            }
+
+            iv_root_t root { new SoSeparator };
+            root->ref();
+            convertModel(root);
+            m_ivModel = root;
+            return GltfIv::write(filename, root, writeBinary);
+        }
+        catch (std::exception exception) {
+            spdlog::error(std::format("failed to convert model: {}", exception.what()));
+            return false;
+        }
+    }
 
 private:
 
@@ -32,151 +60,124 @@ private:
     using normal_map_t = std::map<normal_t, iv_index_t>;
 
     using texture_coordinate_t = std::array<float, 2>;
-    using indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
+    using gltf_indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
 
     using iv_root_t = gsl::not_null<SoSeparator *>;
     
-
-    void convertModel(iv_root_t root);
-    void convertScene(iv_root_t root, const tinygltf::Scene & scene);
-    void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices);
-    void convertNode(iv_root_t root, const tinygltf::Node & node);
-    void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh);
-    void convertPrimitives(iv_root_t root, const std::vector<tinygltf::Primitive> & primitives);
-    void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
-    void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
-
-    SbColor diffuseColor(const tinygltf::Material & material);
-    void convertMaterial(iv_root_t root, const tinygltf::Material & material);
-
-    iv_indices_t convertPositions(iv_root_t root, const tinygltf::Primitive & primitive);
-    void convertPositions(iv_root_t root, const positions_t & positions);
-
-    iv_indices_t convertNormals(iv_root_t root, const tinygltf::Primitive & primitive);
-    void convertNormals(iv_root_t root, const normals_t & normals);
-
-    void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const;
-    positions_t positions(const tinygltf::Primitive & primitive);
-    normals_t normals(const tinygltf::Primitive & primitive);
-    std::vector<texture_coordinate_t> textureCoordinates(const tinygltf::Primitive & primitive);
-
-    indices_t indices(const tinygltf::Primitive & primitive);
-
-    
-    
-
-    template<class T>
-    std::vector<T> accessorContents(const tinygltf::Accessor & accessor)
+    void convertModel(iv_root_t root) const
     {
-        const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(accessor.bufferView);
-        const tinygltf::Buffer & buffer = m_gltfModel.buffers.at(bufferView.buffer);
+        spdlog::trace("converting gltf model to open inventor model");
 
-        const int byteStride{ accessor.ByteStride(bufferView) };
-        if (byteStride != sizeof(T)) {
-            throw std::invalid_argument(
-                std::format(
-                    "mismatching size of the buffer's byte stride ({}) and the size of the target type ({})",
-                    byteStride,
-                    sizeof(T)
-                )
-            );
-        }
-
-        std::vector<T> contents;
-        contents.resize(accessor.count);
-
-        std::memcpy(&contents[0], &buffer.data[bufferView.byteOffset], bufferView.byteLength);
-
-        return contents;
-    }
-
-    template<class T>
-    std::vector<T> unique(const std::vector<T> & items) {
-        std::vector<T> unqiueItems{ items };
-        std::sort(unqiueItems.begin(), unqiueItems.end());
-        unqiueItems.erase(std::unique(unqiueItems.begin(), unqiueItems.end()), unqiueItems.end());
-        return unqiueItems;
-
-    }
-
-    
-
-    template<typename index_t>
-    std::unordered_map<index_t, iv_index_t> positionIndexMap(const positions_t & uniquePositions, const positions_t & positions, const std::vector<index_t> & indices)
-    {
-        std::map<position_t, iv_index_t> positionMap{};
-        std::unordered_map<index_t, iv_index_t> positionIndexMap{};
-
-        for (iv_index_t i = 0; i < uniquePositions.size(); ++i) {
-            positionMap[uniquePositions[i]] = i;
-        }
-
-        for (const index_t & index : indices) {
-            positionIndexMap[index] = positionMap.at(positions.at(static_cast<size_t>(index)));
-        }
-
-        return positionIndexMap;
-    }
-
-    position_map_t positionMap(const positions_t & positions) 
-    {
-        position_map_t positionMap;
-
-        for (iv_index_t i = 0; i < positions.size(); ++i) {
-            positionMap[positions[i]] = i;
-        }
-
-        return positionMap;
-    }
-
-    template<typename index_t>
-    iv_indices_t positionIndices(const std::vector<index_t> & indices, const positions_t & positions, const position_map_t & positionMap)
-    {
-        iv_indices_t positionIndices;
-        positionIndices.reserve(indices.size());
-
-        std::transform(
-            indices.cbegin(),
-            indices.cend(),
-            std::back_inserter(positionIndices),
-            [&positions, &positionMap] (const index_t & index)
+        std::for_each(
+            m_gltfModel.scenes.cbegin(),
+            m_gltfModel.scenes.cend(),
+            [this, root] (const tinygltf::Scene & scene)
             {
-                if constexpr (std::is_same<index_t, float>::value) {
-                    return positionMap.at(positions.at(static_cast<size_t>(index)));
-                }
-                else {
-                    return positionMap.at(positions.at(index));
-                }
+                convertScene(root, scene);
             }
         );
-
-        return positionIndices;
     }
 
-    iv_indices_t positionIndices(const indices_t & indices, const positions_t & positions, const position_map_t & positionMap)
+    void convertScene(iv_root_t root, const tinygltf::Scene & scene) const
     {
-        if (std::holds_alternative<std::vector<uint8_t>>(indices)) {
-            return positionIndices<uint8_t>(std::get<std::vector<uint8_t>>(indices), positions, positionMap);
-        } else if(std::holds_alternative<std::vector<int8_t>>(indices)) {
-            return positionIndices<int8_t>(std::get<std::vector<int8_t>>(indices), positions, positionMap);
-        } else if (std::holds_alternative<std::vector<uint16_t>>(indices)) {
-            return positionIndices<uint16_t>(std::get<std::vector<uint16_t>>(indices), positions, positionMap);
-        } else if (std::holds_alternative<std::vector<int16_t>>(indices)) {
-            return positionIndices<int16_t>(std::get<std::vector<int16_t>>(indices), positions, positionMap);
-        } else if (std::holds_alternative<std::vector<uint32_t>>(indices)) {
-            return positionIndices<uint32_t>(std::get<std::vector<uint32_t>>(indices), positions, positionMap);
-        } else if (std::holds_alternative<std::vector<float>>(indices)) {
-            return positionIndices<float>(std::get<std::vector<float>>(indices), positions, positionMap);
+        spdlog::trace("converting scene with name '{}'", scene.name);
+
+        SoSeparator * sceneRoot{ new SoSeparator };
+
+        convertNodes(sceneRoot, scene.nodes);
+
+        root->addChild(sceneRoot);
+    }
+
+    void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices) const
+    {
+        std::for_each(
+            nodeIndices.cbegin(),
+            nodeIndices.cend(),
+            [this, root] (int nodeIndex)
+            {
+                convertNode(root, m_gltfModel.nodes.at(static_cast<size_t>(nodeIndex)));
+            }
+        );
+    }
+
+    void convertNode(iv_root_t root, const tinygltf::Node & node) const
+    {
+        spdlog::trace("converting node with name '{}'", node.name);
+
+        SoSeparator * nodeRoot{ new SoSeparator };
+
+        if (node.mesh >= 0) {
+            convertMesh(nodeRoot, m_gltfModel.meshes.at(static_cast<size_t>(node.mesh)));
+        }
+        convertNodes(nodeRoot, node.children);
+
+        root->addChild(nodeRoot);
+    }
+
+    void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh) const
+    {
+        spdlog::trace("converting mesh with name '{}'", mesh.name);
+
+        const std::vector<tinygltf::Primitive> & primitives{ mesh.primitives };
+
+        std::for_each(
+            primitives.cbegin(),
+            primitives.cend(),
+            [this, root] (const tinygltf::Primitive & primitive)
+            {
+                convertPrimitive(root, primitive);
+            }
+        );
+    }
+
+    void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
+    {
+        spdlog::trace("converting primitive with mode {}", primitive.mode);
+
+        switch (primitive.mode) {
+        case TINYGLTF_MODE_TRIANGLES:
+            convertTrianglesPrimitive(root, primitive);
+            break;
+        default:
+            spdlog::warn("skipping unsupported primitive with mode {}", primitive.mode);
+        }
+    }
+
+    void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
+    {
+        spdlog::trace("converting triangles primitive");
+
+        if (primitive.material >= 0) {
+            convertMaterial(root, m_gltfModel.materials.at(static_cast<size_t>(primitive.material)));
         }
 
-        throw std::invalid_argument("unsupported index type");
+        convertTriangles(root, convertPositions(root, primitive), convertNormals(root, primitive));
     }
 
-    normal_map_t normalMap(const normals_t & normals);
-    
-    iv_indices_t normalIndices(const normals_t & normals, const normal_map_t & normalMap);
+    static void convertMaterial(iv_root_t root, const tinygltf::Material & material)
+    {
+        SoMaterial * materialNode = new SoMaterial;
+        materialNode->diffuseColor = diffuseColor(material);
+        root->addChild(materialNode);
 
-    void convertTriangles(iv_root_t root, const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
+        SoMaterialBinding * materialBinding = new SoMaterialBinding;
+        materialBinding->value = SoMaterialBinding::Binding::OVERALL;
+        root->addChild(materialBinding);
+    }
+
+    static SbColor diffuseColor(const tinygltf::Material & material)
+    {
+        const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
+
+        return SbColor{
+            static_cast<float>(baseColorFactor[0]),
+            static_cast<float>(baseColorFactor[1]),
+            static_cast<float>(baseColorFactor[2]) 
+        };
+    }
+
+    static void convertTriangles(iv_root_t root, const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
     {
         if (positionIndices.size() != normalIndices.size()) {
             throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
@@ -220,6 +221,259 @@ private:
         triangles->normalIndex = normalIndex;
 
         root->addChild(triangles);
+    }
+
+    iv_indices_t convertPositions(iv_root_t root, const tinygltf::Primitive & primitive) const
+    {
+        const positions_t positions{ GltfIvWriter::positions(primitive) };
+        const positions_t uniquePositions{ unique<position_t>(positions) };
+
+        convertPositions(root, uniquePositions);
+
+        return positionIndices(indices(primitive), positions, positionMap(uniquePositions));
+    }
+
+    static void convertPositions(iv_root_t root, const positions_t & positions)
+    {
+        static_assert(sizeof(SbVec3f) == sizeof(position_t));
+
+        SoCoordinate3 * coords = new SoCoordinate3;
+        coords->point.setNum(static_cast<int>(positions.size()));
+        SbVec3f * ivPointsPtr = coords->point.startEditing();
+        std::memcpy(ivPointsPtr, &positions[0], sizeof(SbVec3f) * positions.size());
+        coords->point.finishEditing();
+
+        root->addChild(coords);
+    }
+
+    iv_indices_t convertNormals(iv_root_t root, const tinygltf::Primitive & primitive) const
+    {
+        SoNormalBinding * normalBinding = new SoNormalBinding;
+        normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
+        root->addChild(normalBinding);
+
+        const normals_t normals{ GltfIvWriter::normals(primitive) };
+
+        if (normals.empty()) {
+            return {};
+        }
+
+        const normals_t uniqueNormals{ unique(normals) };
+
+        convertNormals(root, uniqueNormals);
+
+        return normalIndices(normals, normalMap(uniqueNormals));
+    }
+
+    static void convertNormals(iv_root_t root, const normals_t & normals)
+    {
+        SoMFVec3f normalVectors{};
+        normalVectors.setNum(static_cast<int>(normals.size()));
+        SbVec3f * normalVectorPos = normalVectors.startEditing();
+        std::memcpy(normalVectorPos, &normals[0], sizeof(SbVec3f) * normals.size());
+        normalVectors.finishEditing();
+
+        SoNormal * normalNode = new SoNormal;
+        normalNode->vector = normalVectors;
+        root->addChild(normalNode);
+    }
+
+    static normal_map_t normalMap(const normals_t & normals)
+    {
+        normal_map_t result;
+
+        for (size_t index = 0; index < normals.size(); ++index) {
+            result[normals[index]] = static_cast<iv_index_t>(index);
+        }
+
+        return result;
+    }
+
+    static iv_indices_t normalIndices(const normals_t & normals, const normal_map_t & normalMap)
+    {
+        iv_indices_t normalIndices;
+        normalIndices.reserve(normals.size());
+
+        std::transform(
+            normals.cbegin(),
+            normals.cend(),
+            std::back_inserter(normalIndices),
+            [&normalMap] (const normal_t & normal)
+            {
+                return normalMap.at(normal);
+            }
+        );
+
+        return normalIndices;
+    }
+
+    template<typename index_t>
+    static iv_indices_t positionIndices(const std::vector<index_t> & indices, const positions_t & positions, const position_map_t & positionMap)
+    {
+        iv_indices_t positionIndices;
+        positionIndices.reserve(indices.size());
+
+        std::transform(
+            indices.cbegin(),
+            indices.cend(),
+            std::back_inserter(positionIndices),
+            [&positions, &positionMap] (const index_t & index)
+            {
+                return positionMap.at(positions.at(static_cast<size_t>(index)));               
+            }
+        );
+
+        return positionIndices;
+    }
+
+    static iv_indices_t positionIndices(const gltf_indices_t & indices, const positions_t & positions, const position_map_t & positionMap)
+    {
+        if (std::holds_alternative<std::vector<uint8_t>>(indices)) {
+            return positionIndices<uint8_t>(std::get<std::vector<uint8_t>>(indices), positions, positionMap);
+        }
+        else if (std::holds_alternative<std::vector<int8_t>>(indices)) {
+            return positionIndices<int8_t>(std::get<std::vector<int8_t>>(indices), positions, positionMap);
+        }
+        else if (std::holds_alternative<std::vector<uint16_t>>(indices)) {
+            return positionIndices<uint16_t>(std::get<std::vector<uint16_t>>(indices), positions, positionMap);
+        }
+        else if (std::holds_alternative<std::vector<int16_t>>(indices)) {
+            return positionIndices<int16_t>(std::get<std::vector<int16_t>>(indices), positions, positionMap);
+        }
+        else if (std::holds_alternative<std::vector<uint32_t>>(indices)) {
+            return positionIndices<uint32_t>(std::get<std::vector<uint32_t>>(indices), positions, positionMap);
+        }
+        else if (std::holds_alternative<std::vector<float>>(indices)) {
+            return positionIndices<float>(std::get<std::vector<float>>(indices), positions, positionMap);
+        }
+
+        throw std::invalid_argument("unsupported index type");
+    }
+
+    static position_map_t positionMap(const positions_t & positions)
+    {
+        position_map_t positionMap;
+
+        for (size_t i = 0; i < positions.size(); ++i) {
+            positionMap[positions[i]] = static_cast<iv_index_t>(i);
+        }
+
+        return positionMap;
+    }
+
+    positions_t positions(const tinygltf::Primitive & primitive) const
+    {
+        spdlog::trace("retrieve positions from primitive");
+        const int accessorIndex{ primitive.attributes.at("POSITION") };
+        if (accessorIndex >= 0) {
+            const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
+            ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
+            return accessorContents<position_t>(accessor);
+        } else {
+            spdlog::warn("positions accessor at index {} not found", accessorIndex);
+            return {};
+        }
+        
+    }
+
+    normals_t normals(const tinygltf::Primitive & primitive) const
+    {
+        spdlog::trace("retrieve normals from primitive");
+        const int accessorIndex{ primitive.attributes.at("NORMAL") };
+        if (accessorIndex >= 0) {
+            const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
+            ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
+            return accessorContents<normal_t>(accessor);
+        } else {
+            spdlog::warn("normals accessor at index {} not found", accessorIndex);
+            return {};
+        }
+    }
+
+    gltf_indices_t indices(const tinygltf::Primitive & primitive) const
+    {
+        spdlog::trace("retrieve indices from primitive");
+
+        const int accessorIndex{ primitive.indices };
+        if (accessorIndex < 0) {
+            spdlog::warn("indices accessor at index {} not found", accessorIndex);
+            return {};
+        }
+
+        const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
+
+        ensureAccessorType(accessor, TINYGLTF_TYPE_SCALAR);
+
+        switch (accessor.componentType) {
+        case TINYGLTF_COMPONENT_TYPE_BYTE:
+            return accessorContents<int8_t>(accessor);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+            return accessorContents<uint8_t>(accessor);
+        case TINYGLTF_COMPONENT_TYPE_SHORT:
+            return accessorContents<int16_t>(accessor);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+            return accessorContents<uint16_t>(accessor);
+            // TINYGLTF_COMPONENT_TYPE_INT not supported as per specification https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#accessor-data-types
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+            return accessorContents<uint32_t>(accessor);
+        case TINYGLTF_COMPONENT_TYPE_FLOAT:
+            return accessorContents<float>(accessor);
+        default:
+            throw std::invalid_argument(std::format("unsupported component type {}", accessor.componentType));
+        }
+    }
+
+    static void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType)
+    {
+        if (accessor.type != accessorType) {
+            throw std::domain_error(std::format("expected accessor type {} instead of {}", accessorType, accessor.type));
+        }
+    }
+
+    template<class T>
+    std::vector<T> accessorContents(const tinygltf::Accessor & accessor) const
+    {
+        const int bufferViewIndex{ accessor.bufferView };
+        if (bufferViewIndex < 0) {
+            spdlog::warn("accessor buffer view not found at index {}", bufferViewIndex);
+            return {};
+        }
+        const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(static_cast<size_t>(bufferViewIndex));
+
+        const int bufferIndex{ bufferView.buffer };
+        if (bufferIndex < 0) {
+            spdlog::warn("accessor buffer not found at index {}", bufferIndex);
+            return {};
+        }
+
+        const tinygltf::Buffer & buffer = m_gltfModel.buffers.at(static_cast<size_t>(bufferIndex));
+
+        const int byteStride{ accessor.ByteStride(bufferView) };
+        if (byteStride != sizeof(T)) {
+            throw std::invalid_argument(
+                std::format(
+                    "mismatching size of the buffer's byte stride ({}) and the size of the target type ({})",
+                    byteStride,
+                    sizeof(T)
+                )
+            );
+        }
+
+        std::vector<T> contents;
+        contents.resize(accessor.count);
+
+        std::memcpy(&contents[0], &buffer.data[bufferView.byteOffset], bufferView.byteLength);
+
+        return contents;
+    }
+
+    template<class T>
+    static std::vector<T> unique(const std::vector<T> & items) {
+        std::vector<T> unqiueItems{ items };
+        std::sort(unqiueItems.begin(), unqiueItems.end());
+        unqiueItems.erase(std::unique(unqiueItems.begin(), unqiueItems.end()), unqiueItems.end());
+        return unqiueItems;
+
     }
 
     const tinygltf::Model m_gltfModel;

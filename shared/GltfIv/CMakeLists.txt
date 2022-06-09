@@ -1,4 +1,5 @@
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
 find_package(fmt CONFIG REQUIRED)
@@ -9,7 +10,6 @@ set(SRC
 	GltfIv.h
 	GltfIv.cxx
 	GltfIvWriter.h
-	GltfIvWriter.cxx
 )
 
 add_library(GltfIv ${SRC})
@@ -24,7 +24,7 @@ target_include_directories(GltfIv
 target_compile_options(GltfIv 
 	PRIVATE
      $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-          -Wall -Werror
+          -Wall -Wno-c++98-compat -Wno-c++98-compat-pedantic -Werror
 		  >
      $<$<CXX_COMPILER_ID:MSVC>:
           /W4 /WX
