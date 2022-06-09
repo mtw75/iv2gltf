@@ -24,12 +24,15 @@ private:
     using iv_indices_t = std::vector<iv_index_t>;
 
     using position_t = std::array<float, 3>;
+    using positions_t = std::vector<position_t>;
+    using position_map_t = std::map<position_t, iv_index_t>;
+
     using normal_t = std::array<float, 3>;
     using normals_t = std::vector<normal_t>;
+    using normal_map_t = std::map<normal_t, iv_index_t>;
+
     using texture_coordinate_t = std::array<float, 2>;
     using indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
-    using index_map_t = std::variant<std::unordered_map<uint8_t, iv_index_t>, std::unordered_map<int8_t, iv_index_t>, std::unordered_map<uint16_t, iv_index_t>, std::unordered_map<int16_t, iv_index_t>, std::unordered_map<uint32_t, iv_index_t>, std::unordered_map<float, iv_index_t>>;
-    using normal_map_t = std::map<normal_t, iv_index_t>;
 
     using iv_root_t = gsl::not_null<SoSeparator *>;
     
@@ -44,7 +47,7 @@ private:
     void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
 
     void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const;
-    std::vector<position_t> positions(const tinygltf::Primitive & primitive);
+    positions_t positions(const tinygltf::Primitive & primitive);
     normals_t normals(const tinygltf::Primitive & primitive);
     std::vector<texture_coordinate_t> textureCoordinates(const tinygltf::Primitive & primitive);
 
@@ -88,10 +91,10 @@ private:
 
     }
 
-    SoCoordinate3 * convertPositions(const std::vector<position_t> & positions);
+    SoCoordinate3 * convertPositions(const positions_t & positions);
 
     template<typename index_t>
-    std::unordered_map<index_t, iv_index_t> positionIndexMap(const std::vector<position_t> & uniquePositions, const std::vector<position_t> & positions, const std::vector<index_t> & indices)
+    std::unordered_map<index_t, iv_index_t> positionIndexMap(const positions_t & uniquePositions, const positions_t & positions, const std::vector<index_t> & indices)
     {
         std::map<position_t, iv_index_t> positionMap{};
         std::unordered_map<index_t, iv_index_t> positionIndexMap{};
@@ -107,20 +110,55 @@ private:
         return positionIndexMap;
     }
 
-    index_map_t positionIndexMap(const std::vector<position_t> & uniquePositions, const std::vector<position_t> & positions, const indices_t & indices)
+    position_map_t positionMap(const positions_t & positions) 
+    {
+        position_map_t positionMap;
+
+        for (iv_index_t i = 0; i < positions.size(); ++i) {
+            positionMap[positions[i]] = i;
+        }
+
+        return positionMap;
+    }
+
+    template<typename index_t>
+    iv_indices_t positionIndices(const std::vector<index_t> & indices, const positions_t & positions, const position_map_t & positionMap)
+    {
+        iv_indices_t positionIndices;
+        positionIndices.reserve(indices.size());
+
+        std::transform(
+            indices.cbegin(),
+            indices.cend(),
+            std::back_inserter(positionIndices),
+            [&positions, &positionMap] (const index_t & index)
+            {
+                if constexpr (std::is_same<index_t, float>::value) {
+                    return positionMap.at(positions.at(static_cast<size_t>(index)));
+                }
+                else {
+                    return positionMap.at(positions.at(index));
+                }
+            }
+        );
+
+        return positionIndices;
+    }
+
+    iv_indices_t positionIndices(const indices_t & indices, const positions_t & positions, const position_map_t & positionMap)
     {
         if (std::holds_alternative<std::vector<uint8_t>>(indices)) {
-            return positionIndexMap<uint8_t>(uniquePositions, positions, std::get<std::vector<uint8_t>>(indices));
-        } else if (std::holds_alternative<std::vector<int8_t>>(indices)) {
-            return positionIndexMap<int8_t>(uniquePositions, positions, std::get<std::vector<int8_t>>(indices));
+            return positionIndices<uint8_t>(std::get<std::vector<uint8_t>>(indices), positions, positionMap);
+        } else if(std::holds_alternative<std::vector<int8_t>>(indices)) {
+            return positionIndices<int8_t>(std::get<std::vector<int8_t>>(indices), positions, positionMap);
         } else if (std::holds_alternative<std::vector<uint16_t>>(indices)) {
-            return positionIndexMap<uint16_t>(uniquePositions, positions, std::get<std::vector<uint16_t>>(indices));
+            return positionIndices<uint16_t>(std::get<std::vector<uint16_t>>(indices), positions, positionMap);
         } else if (std::holds_alternative<std::vector<int16_t>>(indices)) {
-            return positionIndexMap<int16_t>(uniquePositions, positions, std::get<std::vector<int16_t>>(indices));
+            return positionIndices<int16_t>(std::get<std::vector<int16_t>>(indices), positions, positionMap);
         } else if (std::holds_alternative<std::vector<uint32_t>>(indices)) {
-            return positionIndexMap<uint32_t>(uniquePositions, positions, std::get<std::vector<uint32_t>>(indices));
+            return positionIndices<uint32_t>(std::get<std::vector<uint32_t>>(indices), positions, positionMap);
         } else if (std::holds_alternative<std::vector<float>>(indices)) {
-            return positionIndexMap<float>(uniquePositions, positions, std::get<std::vector<float>>(indices));
+            return positionIndices<float>(std::get<std::vector<float>>(indices), positions, positionMap);
         }
 
         throw std::invalid_argument("unsupported index type");
@@ -130,22 +168,21 @@ private:
     SoNormal * convertNormals(const normals_t & normals);
     iv_indices_t normalIndices(const normals_t & normals, const normal_map_t & normalMap);
 
-    template<typename index_t>
-    SoIndexedTriangleStripSet * convertTriangles(const std::vector<index_t> & indices, const iv_indices_t & normalIndices, const std::unordered_map<index_t, iv_index_t> & positionIndexMap)
+    SoIndexedTriangleStripSet * convertTriangles(const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
     {
-        if (indices.size() != normalIndices.size()) {
-            throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", indices.size(), normalIndices.size()));
+        if (positionIndices.size() != normalIndices.size()) {
+            throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
         }
 
         constexpr size_t triangle_strip_size{ 3U };
 
-        if (indices.size() % triangle_strip_size != 0) {
-            throw std::invalid_argument(std::format("number of indices ({}) is not divisible by the triangel stip size", indices.size(), triangle_strip_size));
+        if (positionIndices.size() % triangle_strip_size != 0) {
+            throw std::invalid_argument(std::format("number of indices ({}) is not divisible by the triangel stip size", positionIndices.size(), triangle_strip_size));
         }
 
         SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
-        const int indexSize{ static_cast<int>(indices.size() + indices.size() / triangle_strip_size) };
+        const int indexSize{ static_cast<int>(positionIndices.size() + positionIndices.size() / triangle_strip_size) };
 
         SoMFInt32 coordIndex{};
         SoMFInt32 normalIndex{};
@@ -156,11 +193,11 @@ private:
         iv_index_t * coordIndexPosition = coordIndex.startEditing();
         iv_index_t * normalIndexPosition = normalIndex.startEditing();
 
-        for (size_t i = 0; i + triangle_strip_size - 1 < indices.size(); i += triangle_strip_size) {
+        for (size_t i = 0; i + triangle_strip_size - 1 < positionIndices.size(); i += triangle_strip_size) {
             for (size_t j = 0; j < triangle_strip_size; ++j)
             {
                 const size_t k = i + j;
-                *coordIndexPosition++ = positionIndexMap.at(indices.at(k));
+                *coordIndexPosition++ = positionIndices.at(k);
                 *normalIndexPosition++ = normalIndices.at(k);
             }
 
@@ -175,25 +212,6 @@ private:
         triangles->normalIndex = normalIndex;
 
         return triangles;
-    }
-
-    SoIndexedTriangleStripSet * convertTriangles(const indices_t & indices, const iv_indices_t & normalIndices, const index_map_t & positionIndexMap)
-    {
-        if (std::holds_alternative<std::vector<uint8_t>>(indices) && std::holds_alternative<std::unordered_map<uint8_t, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<uint8_t>(std::get<std::vector<uint8_t>>(indices), normalIndices, std::get<std::unordered_map<uint8_t, iv_index_t>>(positionIndexMap));
-        } else if (std::holds_alternative<std::vector<int8_t>>(indices) && std::holds_alternative<std::unordered_map<int8_t, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<int8_t>(std::get<std::vector<int8_t>>(indices), normalIndices, std::get<std::unordered_map<int8_t, iv_index_t>>(positionIndexMap));
-        } else if (std::holds_alternative<std::vector<uint16_t>>(indices) && std::holds_alternative<std::unordered_map<uint16_t, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<uint16_t>(std::get<std::vector<uint16_t>>(indices), normalIndices, std::get<std::unordered_map<uint16_t, iv_index_t>>(positionIndexMap));
-        } else if (std::holds_alternative<std::vector<int16_t>>(indices) && std::holds_alternative<std::unordered_map<int16_t, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<int16_t>(std::get<std::vector<int16_t>>(indices), normalIndices, std::get<std::unordered_map<int16_t, iv_index_t>>(positionIndexMap));
-        } else if (std::holds_alternative<std::vector<uint32_t>>(indices) && std::holds_alternative<std::unordered_map<uint32_t, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<uint32_t>(std::get<std::vector<uint32_t>>(indices), normalIndices, std::get<std::unordered_map<uint32_t, iv_index_t>>(positionIndexMap));
-        } else if (std::holds_alternative<std::vector<float>>(indices) && std::holds_alternative<std::unordered_map<float, iv_index_t>>(positionIndexMap)) {
-            return convertTriangles<float>(std::get<std::vector<float>>(indices), normalIndices, std::get<std::unordered_map<float, iv_index_t>>(positionIndexMap));
-        }
-
-        throw std::invalid_argument("unsupported index type");
     }
 
     const tinygltf::Model m_gltfModel;

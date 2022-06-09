@@ -121,7 +121,7 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
 {
     spdlog::trace("converting triangles primitive");
 
-    const std::vector<position_t> positions{ this->positions(primitive) };
+    const positions_t positions{ this->positions(primitive) };
     const normals_t normals{ this->normals(primitive) };
     const indices_t indices{ this->indices(primitive) };
 
@@ -133,7 +133,9 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
 
     root->addChild(materialBinding);
 
-    const std::vector<position_t> uniquePositions{ unique<position_t>(positions) };
+    const positions_t uniquePositions{ unique<position_t>(positions) };
+    const position_map_t positionMap{ this->positionMap(uniquePositions) };
+    const iv_indices_t positionIndices{ this->positionIndices(indices, positions, positionMap)};
 
     root->addChild(convertPositions(uniquePositions));
 
@@ -150,9 +152,7 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
     const normal_map_t normalMap{ this->normalMap(uniqueNormals) };
     const iv_indices_t normalIndices{ this->normalIndices(normals, normalMap)}; 
 
-    const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
-
-    root->addChild(convertTriangles(indices, normalIndices, positionIndexMap));
+    root->addChild(convertTriangles(positionIndices, normalIndices));
 }
 
 GltfIvWriter::indices_t GltfIvWriter::indices(const tinygltf::Primitive & primitive)
@@ -222,7 +222,7 @@ std::vector<GltfIvWriter::texture_coordinate_t> GltfIvWriter::textureCoordinates
     return accessorContents<texture_coordinate_t>(accessor);
 }
 
-SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & positions)
+SoCoordinate3 * GltfIvWriter::convertPositions(const positions_t & positions)
 {
     SoCoordinate3 * coords = new SoCoordinate3;
 
