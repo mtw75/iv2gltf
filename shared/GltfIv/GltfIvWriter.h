@@ -23,6 +23,7 @@ private:
     using texture_coordinate_t = std::array<float, 2>;
     using indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
     using index_map_t = std::variant<std::unordered_map<uint8_t, int32_t>, std::unordered_map<int8_t, int32_t>, std::unordered_map<uint16_t, int32_t>, std::unordered_map<int16_t, int32_t>, std::unordered_map<uint32_t, int32_t>, std::unordered_map<float, int32_t>>;
+    using normal_map_t = std::map<normal_t, int32_t>;
 
     bool convertModel();
     bool convertScene(const tinygltf::Scene & scene);
@@ -117,14 +118,25 @@ private:
         throw std::invalid_argument("unsupported index type");
     }
 
+    normal_map_t normalMap(const std::vector<normal_t> & normals);
     SoNormal * convertNormals(const std::vector<normal_t> & normals);
 
     template<typename index_t>
-    SoIndexedTriangleStripSet * convertTriangles(const std::vector<index_t> & indices, const std::vector<normal_t> & normals, const std::unordered_map<index_t, int32_t> & positionIndexMap)
+    SoIndexedTriangleStripSet * convertTriangles(const std::vector<index_t> & indices, const std::vector<normal_t> & normals, const normal_map_t & normalMap, const std::unordered_map<index_t, int32_t> & positionIndexMap)
     {
+        if (indices.size() != normals.size()) {
+            throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", indices.size(), normals.size()));
+        }
+
+        constexpr size_t triangle_strip_size{ 3U };
+
+        if (indices.size() % triangle_strip_size != 0) {
+            throw std::invalid_argument(std::format("number of indices ({}) is not divisible by the triangel stip size", indices.size(), triangle_strip_size));
+        }
+
         SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
-        const int indexSize{ static_cast<int>(indices.size() + indices.size() / 4U) };
+        const int indexSize{ static_cast<int>(indices.size() + indices.size() / triangle_strip_size) };
 
         SoMFInt32 coordIndex{};
         SoMFInt32 normalIndex{};
@@ -135,14 +147,12 @@ private:
         int32_t * coordIndexPosition = coordIndex.startEditing();
         int32_t * normalIndexPosition = normalIndex.startEditing();
 
-        constexpr size_t triangle_strip_size{ 4U };
-
         for (size_t i = 0; i + triangle_strip_size - 1 < indices.size(); i += triangle_strip_size) {
             for (size_t j = 0; j < triangle_strip_size; ++j)
             {
                 const size_t k = i + j;
                 *coordIndexPosition++ = positionIndexMap.at(indices.at(k));
-                *normalIndexPosition++ = m_normalMap.at(normals.at(k));
+                *normalIndexPosition++ = normalMap.at(normals.at(k));
             }
 
             *coordIndexPosition++ = -1;
@@ -158,20 +168,20 @@ private:
         return triangles;
     }
 
-    SoIndexedTriangleStripSet * convertTriangles(const indices_t & indices, const std::vector<normal_t> & normals, const index_map_t & positionIndexMap)
+    SoIndexedTriangleStripSet * convertTriangles(const indices_t & indices, const std::vector<normal_t> & normals, const normal_map_t & normalMap, const index_map_t & positionIndexMap)
     {
         if (std::holds_alternative<std::vector<uint8_t>>(indices) && std::holds_alternative<std::unordered_map<uint8_t, int32_t>>(positionIndexMap)) {
-            return convertTriangles<uint8_t>(std::get<std::vector<uint8_t>>(indices), normals, std::get<std::unordered_map<uint8_t, int32_t>>(positionIndexMap));
+            return convertTriangles<uint8_t>(std::get<std::vector<uint8_t>>(indices), normals, normalMap, std::get<std::unordered_map<uint8_t, int32_t>>(positionIndexMap));
         } else if (std::holds_alternative<std::vector<int8_t>>(indices) && std::holds_alternative<std::unordered_map<int8_t, int32_t>>(positionIndexMap)) {
-            return convertTriangles<int8_t>(std::get<std::vector<int8_t>>(indices), normals, std::get<std::unordered_map<int8_t, int32_t>>(positionIndexMap));
+            return convertTriangles<int8_t>(std::get<std::vector<int8_t>>(indices), normals, normalMap, std::get<std::unordered_map<int8_t, int32_t>>(positionIndexMap));
         } else if (std::holds_alternative<std::vector<uint16_t>>(indices) && std::holds_alternative<std::unordered_map<uint16_t, int32_t>>(positionIndexMap)) {
-            return convertTriangles<uint16_t>(std::get<std::vector<uint16_t>>(indices), normals, std::get<std::unordered_map<uint16_t, int32_t>>(positionIndexMap));
+            return convertTriangles<uint16_t>(std::get<std::vector<uint16_t>>(indices), normals, normalMap, std::get<std::unordered_map<uint16_t, int32_t>>(positionIndexMap));
         } else if (std::holds_alternative<std::vector<int16_t>>(indices) && std::holds_alternative<std::unordered_map<int16_t, int32_t>>(positionIndexMap)) {
-            return convertTriangles<int16_t>(std::get<std::vector<int16_t>>(indices), normals, std::get<std::unordered_map<int16_t, int32_t>>(positionIndexMap));
+            return convertTriangles<int16_t>(std::get<std::vector<int16_t>>(indices), normals, normalMap, std::get<std::unordered_map<int16_t, int32_t>>(positionIndexMap));
         } else if (std::holds_alternative<std::vector<uint32_t>>(indices) && std::holds_alternative<std::unordered_map<uint32_t, int32_t>>(positionIndexMap)) {
-            return convertTriangles<uint32_t>(std::get<std::vector<uint32_t>>(indices), normals, std::get<std::unordered_map<uint32_t, int32_t>>(positionIndexMap));
+            return convertTriangles<uint32_t>(std::get<std::vector<uint32_t>>(indices), normals, normalMap, std::get<std::unordered_map<uint32_t, int32_t>>(positionIndexMap));
         } else if (std::holds_alternative<std::vector<float>>(indices) && std::holds_alternative<std::unordered_map<float, int32_t>>(positionIndexMap)) {
-            return convertTriangles<float>(std::get<std::vector<float>>(indices), normals, std::get<std::unordered_map<float, int32_t>>(positionIndexMap));
+            return convertTriangles<float>(std::get<std::vector<float>>(indices), normals, normalMap, std::get<std::unordered_map<float, int32_t>>(positionIndexMap));
         }
 
         throw std::invalid_argument("unsupported index type");
@@ -179,5 +189,4 @@ private:
 
     const tinygltf::Model m_gltfModel;
     SoSeparator * m_ivModel{ nullptr };
-    std::map<normal_t, int32_t> m_normalMap;
 };

@@ -6,7 +6,6 @@
 GltfIvWriter::GltfIvWriter(tinygltf::Model && gltfModel)
     : m_gltfModel{ std::move(gltfModel) }
     , m_ivModel{ new SoSeparator() }
-    , m_normalMap{ }
 {
     m_ivModel->ref();
 }
@@ -143,17 +142,20 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
 
     m_ivModel->addChild(convertPositions(uniquePositions));
 
-    const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
-
     SoNormalBinding * normalBinding = new SoNormalBinding;
 
     normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
 
     m_ivModel->addChild(normalBinding);
 
-    m_ivModel->addChild(convertNormals(normals));
+    std::vector<normal_t> uniqueNormals{ unique(normals) };
 
-    m_ivModel->addChild(convertTriangles(indices, normals, positionIndexMap));
+    m_ivModel->addChild(convertNormals(uniqueNormals));
+
+    const normal_map_t normalMap{ this->normalMap(uniqueNormals) };
+    const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
+
+    m_ivModel->addChild(convertTriangles(indices, normals, normalMap, positionIndexMap));
 
     return true;
 }
@@ -241,25 +243,27 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & p
     return coords;
 }
 
+std::map<GltfIvWriter::normal_t, int32_t> GltfIvWriter::normalMap(const std::vector<normal_t> & normals)
+{
+    normal_map_t result;
+
+    for (int32_t index = 0; index < normals.size(); ++index) {
+        result[normals[index]] = index;
+    }
+
+    return result;
+}
+
 SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
 {
     SoNormal * normalNode = new SoNormal;
-
-    std::vector<normal_t> uniqueNormals{ unique<normal_t>(normals) };
     
     SoMFVec3f normalVectors{};
-    normalVectors.setNum(static_cast<int>(uniqueNormals.size()));
+    normalVectors.setNum(static_cast<int>(normals.size()));
 
-    SbVec3f * pos = normalVectors.startEditing();
+    SbVec3f * normalVectorPos = normalVectors.startEditing();
 
-    int32_t nextNormalIndex{ static_cast<int32_t>(m_normalMap.size()) } ;
-    for (const normal_t & normal : uniqueNormals) {
-
-        if (!m_normalMap.contains(normal)) {
-            m_normalMap[normal] = nextNormalIndex++;
-            *pos++ = SbVec3f(normal[0], normal[1], normal[2]);
-        }
-    }
+    std::memcpy(normalVectorPos, &normals[0], sizeof(SbVec3f) * normals.size());
 
     normalVectors.finishEditing();
 
