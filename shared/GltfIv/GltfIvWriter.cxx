@@ -25,7 +25,8 @@ bool GltfIvWriter::write(std::string filename, bool writeBinary)
     }
 
     try {
-        return convertModel() && GltfIv::write(filename, m_ivModel, writeBinary);
+        convertModel();
+        return GltfIv::write(filename, m_ivModel, writeBinary);
     }
     catch (std::exception exception) {
         spdlog::error(std::format("failed to convert model: {}", exception.what()));
@@ -33,96 +34,89 @@ bool GltfIvWriter::write(std::string filename, bool writeBinary)
     }
 }
 
-bool GltfIvWriter::convertModel()
+void GltfIvWriter::convertModel()
 {
     spdlog::trace("converting gltf model to open inventor model");
-    return std::all_of(
+    std::for_each(
         m_gltfModel.scenes.cbegin(), 
         m_gltfModel.scenes.cend(), 
-        [this](const tinygltf::Scene & scene) { return this->convertScene(scene); }
-        );
-}
-
-bool GltfIvWriter::convertScene(const tinygltf::Scene & scene)
-{
-    spdlog::trace("converting scene with name '{}'", scene.name);
-
-    return convertNodes(scene.nodes);
-}
-
-bool GltfIvWriter::convertNodes(const std::vector<int> nodeIndices)
-{
-    return std::all_of(
-        nodeIndices.cbegin(),
-        nodeIndices.cend(),
-        [this] (int nodeIndex)
+        [this](const tinygltf::Scene & scene) 
         {
-            return this->convertNode(nodeIndex);
+            convertScene(m_ivModel, scene);
         }
     );
 }
 
-bool GltfIvWriter::convertNode(int nodeIndex)
+void GltfIvWriter::convertScene(SoSeparator * root, const tinygltf::Scene & scene)
 {
-    spdlog::trace("converting node with index {}", nodeIndex);
+    spdlog::trace("converting scene with name '{}'", scene.name);
 
-    if (nodeIndex < 0 || nodeIndex >= m_gltfModel.nodes.size()) {
-        spdlog::error("node index {} out of bounds [0, {})", nodeIndex, m_gltfModel.nodes.size());
-        return false;
-    }
+    SoSeparator * sceneRoot{ new SoSeparator };
 
-    return convertNode(m_gltfModel.nodes[nodeIndex]);
+    convertNodes(sceneRoot, scene.nodes);
+
+    root->addChild(sceneRoot);
 }
 
-bool GltfIvWriter::convertNode(const tinygltf::Node & node)
+void GltfIvWriter::convertNodes(SoSeparator * root, const std::vector<int> & nodeIndices)
 {
-    spdlog::trace("converting node with name '{}'", node.name);
-
-    return (node.mesh < 0 || convertMesh(node.mesh)) && convertNodes(node.children);
-}
-
-bool GltfIvWriter::convertMesh(int meshIndex)
-{
-    spdlog::trace("converting mesh with index {}", meshIndex);
-
-    if (meshIndex < 0 || meshIndex >= m_gltfModel.meshes.size()) {
-        spdlog::error("mesh index {} out of bounds [0, {})", meshIndex, m_gltfModel.meshes.size());
-        return false;
-    }
-
-    return convertMesh(m_gltfModel.meshes[meshIndex]);
-}
-
-bool GltfIvWriter::convertMesh(const tinygltf::Mesh & mesh)
-{
-    spdlog::trace("converting mesh with name '{}'", mesh.name);
-
-    return convertPrimitives(mesh.primitives);
-}
-
-bool GltfIvWriter::convertPrimitives(const std::vector<tinygltf::Primitive> & primitives)
-{
-    return std::all_of(
-        primitives.cbegin(),
-        primitives.cend(),
-        [this] (const tinygltf::Primitive & primitive) { return this->convertPrimitive(primitive); }
+    std::for_each(
+        nodeIndices.cbegin(),
+        nodeIndices.cend(),
+        [this, root] (int nodeIndex)
+        {
+            convertNode(root, m_gltfModel.nodes.at(nodeIndex));
+        }
     );
 }
 
-bool GltfIvWriter::convertPrimitive(const tinygltf::Primitive & primitive)
+void GltfIvWriter::convertNode(SoSeparator * root, const tinygltf::Node & node)
+{
+    spdlog::trace("converting node with name '{}'", node.name);
+
+    SoSeparator * nodeRoot{ new SoSeparator };
+
+    if (node.mesh >= 0) {
+        convertMesh(nodeRoot, m_gltfModel.meshes.at(node.mesh));
+    }
+    convertNodes(nodeRoot, node.children);
+
+    root->addChild(nodeRoot);
+}
+
+void GltfIvWriter::convertMesh(SoSeparator * root, const tinygltf::Mesh & mesh)
+{
+    spdlog::trace("converting mesh with name '{}'", mesh.name);
+
+    convertPrimitives(root, mesh.primitives);
+}
+
+void GltfIvWriter::convertPrimitives(SoSeparator * root, const std::vector<tinygltf::Primitive> & primitives)
+{
+    std::for_each(
+        primitives.cbegin(),
+        primitives.cend(),
+        [this, root] (const tinygltf::Primitive & primitive) 
+        { 
+            convertPrimitive(root, primitive);
+        }
+    );
+}
+
+void GltfIvWriter::convertPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive)
 {
     spdlog::trace("converting primitive with mode {}", primitive.mode);
 
     switch (primitive.mode) {
     case TINYGLTF_MODE_TRIANGLES:
-        return convertTrianglesPrimitive(primitive);
+        convertTrianglesPrimitive(root, primitive);
+        break;
     default:
         spdlog::warn("skipping unsupported primitive with mode {}", primitive.mode);
-        return true;
     }
 }
 
-bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primitive)
+void GltfIvWriter::convertTrianglesPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive)
 {
     spdlog::trace("converting triangles primitive");
 
@@ -130,34 +124,32 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
     const std::vector<normal_t> normals{ this->normals(primitive) };
     const indices_t indices{ this->indices(primitive) };
 
-    m_ivModel->addChild(convertMaterial(primitive.material));
+    root->addChild(convertMaterial(primitive.material));
 
     SoMaterialBinding * materialBinding = new SoMaterialBinding;
 
     materialBinding->value = SoMaterialBinding::Binding::OVERALL;
 
-    m_ivModel->addChild(materialBinding);
+    root->addChild(materialBinding);
 
     const std::vector<position_t> uniquePositions{ unique<position_t>(positions) };
 
-    m_ivModel->addChild(convertPositions(uniquePositions));
+    root->addChild(convertPositions(uniquePositions));
 
     SoNormalBinding * normalBinding = new SoNormalBinding;
 
     normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
 
-    m_ivModel->addChild(normalBinding);
+    root->addChild(normalBinding);
 
     std::vector<normal_t> uniqueNormals{ unique(normals) };
 
-    m_ivModel->addChild(convertNormals(uniqueNormals));
+    root->addChild(convertNormals(uniqueNormals));
 
     const normal_map_t normalMap{ this->normalMap(uniqueNormals) };
     const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
 
-    m_ivModel->addChild(convertTriangles(indices, normals, normalMap, positionIndexMap));
-
-    return true;
+    root->addChild(convertTriangles(indices, normals, normalMap, positionIndexMap));
 }
 
 GltfIvWriter::indices_t GltfIvWriter::indices(const tinygltf::Primitive & primitive)

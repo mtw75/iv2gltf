@@ -25,16 +25,15 @@ private:
     using index_map_t = std::variant<std::unordered_map<uint8_t, int32_t>, std::unordered_map<int8_t, int32_t>, std::unordered_map<uint16_t, int32_t>, std::unordered_map<int16_t, int32_t>, std::unordered_map<uint32_t, int32_t>, std::unordered_map<float, int32_t>>;
     using normal_map_t = std::map<normal_t, int32_t>;
 
-    bool convertModel();
-    bool convertScene(const tinygltf::Scene & scene);
-    bool convertNodes(const std::vector<int> nodeIndices);
-    bool convertNode(int nodeIndex);
-    bool convertNode(const tinygltf::Node & node);
-    bool convertMesh(int meshIndex);
-    bool convertMesh(const tinygltf::Mesh & mesh);
-    bool convertPrimitives(const std::vector<tinygltf::Primitive> & primitives);
-    bool convertPrimitive(const tinygltf::Primitive & primitive);
-    bool convertTrianglesPrimitive(const tinygltf::Primitive & primitive);
+    void convertModel();
+    void convertScene(SoSeparator * root, const tinygltf::Scene & scene);
+    void convertNodes(SoSeparator * root, const std::vector<int> & nodeIndices);
+    void convertNode(SoSeparator * root, const tinygltf::Node & node);
+    void convertMesh(SoSeparator * root, const tinygltf::Mesh & mesh);
+    void convertPrimitives(SoSeparator * root, const std::vector<tinygltf::Primitive> & primitives);
+    void convertPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive);
+    void convertTrianglesPrimitive(SoSeparator * root, const tinygltf::Primitive & primitive);
+
     void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const;
     std::vector<position_t> positions(const tinygltf::Primitive & primitive);
     std::vector<normal_t> normals(const tinygltf::Primitive & primitive);
