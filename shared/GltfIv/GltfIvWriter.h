@@ -46,6 +46,15 @@ private:
     void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
     void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive);
 
+    SbColor diffuseColor(const tinygltf::Material & material);
+    void convertMaterial(iv_root_t root, const tinygltf::Material & material);
+
+    iv_indices_t convertPositions(iv_root_t root, const tinygltf::Primitive & primitive);
+    void convertPositions(iv_root_t root, const positions_t & positions);
+
+    iv_indices_t convertNormals(iv_root_t root, const tinygltf::Primitive & primitive);
+    void convertNormals(iv_root_t root, const normals_t & normals);
+
     void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType) const;
     positions_t positions(const tinygltf::Primitive & primitive);
     normals_t normals(const tinygltf::Primitive & primitive);
@@ -53,9 +62,8 @@ private:
 
     indices_t indices(const tinygltf::Primitive & primitive);
 
-    SoMaterial * convertMaterial(int materialIndex);
-    SbColor diffuseColor(const tinygltf::Material & material);
-    SoMaterial * convertMaterial(const tinygltf::Material & material);
+    
+    
 
     template<class T>
     std::vector<T> accessorContents(const tinygltf::Accessor & accessor)
@@ -91,7 +99,7 @@ private:
 
     }
 
-    SoCoordinate3 * convertPositions(const positions_t & positions);
+    
 
     template<typename index_t>
     std::unordered_map<index_t, iv_index_t> positionIndexMap(const positions_t & uniquePositions, const positions_t & positions, const std::vector<index_t> & indices)
@@ -165,10 +173,10 @@ private:
     }
 
     normal_map_t normalMap(const normals_t & normals);
-    SoNormal * convertNormals(const normals_t & normals);
+    
     iv_indices_t normalIndices(const normals_t & normals, const normal_map_t & normalMap);
 
-    SoIndexedTriangleStripSet * convertTriangles(const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
+    void convertTriangles(iv_root_t root, const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
     {
         if (positionIndices.size() != normalIndices.size()) {
             throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
@@ -194,12 +202,12 @@ private:
         iv_index_t * normalIndexPosition = normalIndex.startEditing();
 
         for (size_t i = 0; i + triangle_strip_size - 1 < positionIndices.size(); i += triangle_strip_size) {
-            for (size_t j = 0; j < triangle_strip_size; ++j)
-            {
-                const size_t k = i + j;
-                *coordIndexPosition++ = positionIndices.at(k);
-                *normalIndexPosition++ = normalIndices.at(k);
-            }
+
+            std::memcpy(coordIndexPosition, &positionIndices[i], sizeof(iv_index_t) * triangle_strip_size);
+            std::memcpy(normalIndexPosition, &normalIndices[i], sizeof(iv_index_t) * triangle_strip_size);
+
+            std::advance(coordIndexPosition, triangle_strip_size);
+            std::advance(normalIndexPosition, triangle_strip_size);
 
             *coordIndexPosition++ = -1;
             *normalIndexPosition++ = -1;
@@ -211,7 +219,7 @@ private:
         triangles->coordIndex = coordIndex;
         triangles->normalIndex = normalIndex;
 
-        return triangles;
+        root->addChild(triangles);
     }
 
     const tinygltf::Model m_gltfModel;

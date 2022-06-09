@@ -121,38 +121,36 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
 {
     spdlog::trace("converting triangles primitive");
 
-    const positions_t positions{ this->positions(primitive) };
-    const normals_t normals{ this->normals(primitive) };
-    const indices_t indices{ this->indices(primitive) };
+    if (primitive.material >= 0) {
+        convertMaterial(root, m_gltfModel.materials.at(primitive.material));
+    }
+        
+    convertTriangles(root, convertPositions(root, primitive), convertNormals(root, primitive));
+}
 
-    root->addChild(convertMaterial(primitive.material));
-
-    SoMaterialBinding * materialBinding = new SoMaterialBinding;
-
-    materialBinding->value = SoMaterialBinding::Binding::OVERALL;
-
-    root->addChild(materialBinding);
+GltfIvWriter::iv_indices_t GltfIvWriter::convertPositions(iv_root_t root, const tinygltf::Primitive & primitive)
+{
+    const positions_t positions{ GltfIvWriter::positions(primitive) };
 
     const positions_t uniquePositions{ unique<position_t>(positions) };
-    const position_map_t positionMap{ this->positionMap(uniquePositions) };
-    const iv_indices_t positionIndices{ this->positionIndices(indices, positions, positionMap)};
+    
+    convertPositions(root, uniquePositions);
 
-    root->addChild(convertPositions(uniquePositions));
+    return positionIndices(indices(primitive), positions, positionMap(uniquePositions));
+}
 
+GltfIvWriter::iv_indices_t GltfIvWriter::convertNormals(iv_root_t root, const tinygltf::Primitive & primitive)
+{
     SoNormalBinding * normalBinding = new SoNormalBinding;
-
     normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
-
     root->addChild(normalBinding);
 
-    normals_t uniqueNormals{ unique(normals) };
+    const normals_t normals{ GltfIvWriter::normals(primitive) };
+    const normals_t uniqueNormals{ unique(normals) };
 
-    root->addChild(convertNormals(uniqueNormals));
+    convertNormals(root, uniqueNormals);
 
-    const normal_map_t normalMap{ this->normalMap(uniqueNormals) };
-    const iv_indices_t normalIndices{ this->normalIndices(normals, normalMap)}; 
-
-    root->addChild(convertTriangles(positionIndices, normalIndices));
+    return normalIndices(normals, normalMap(uniqueNormals));
 }
 
 GltfIvWriter::indices_t GltfIvWriter::indices(const tinygltf::Primitive & primitive)
@@ -222,7 +220,7 @@ std::vector<GltfIvWriter::texture_coordinate_t> GltfIvWriter::textureCoordinates
     return accessorContents<texture_coordinate_t>(accessor);
 }
 
-SoCoordinate3 * GltfIvWriter::convertPositions(const positions_t & positions)
+void GltfIvWriter::convertPositions(iv_root_t root, const positions_t & positions)
 {
     SoCoordinate3 * coords = new SoCoordinate3;
 
@@ -235,10 +233,10 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const positions_t & positions)
 
     coords->point.finishEditing();
 
-    return coords;
+    root->addChild(coords);
 }
 
-SoNormal * GltfIvWriter::convertNormals(const normals_t & normals)
+void GltfIvWriter::convertNormals(iv_root_t root, const normals_t & normals)
 {
     SoNormal * normalNode = new SoNormal;
     
@@ -253,7 +251,7 @@ SoNormal * GltfIvWriter::convertNormals(const normals_t & normals)
 
     normalNode->vector = normalVectors;
 
-    return normalNode;
+    root->addChild(normalNode);
 }
 
 std::map<GltfIvWriter::normal_t, GltfIvWriter::iv_index_t> GltfIvWriter::normalMap(const normals_t & normals)
@@ -285,11 +283,6 @@ GltfIvWriter::iv_indices_t GltfIvWriter::normalIndices(const normals_t & normals
     return normalIndices;
 }
 
-SoMaterial * GltfIvWriter::convertMaterial(int materialIndex)
-{
-    return convertMaterial(m_gltfModel.materials.at(materialIndex));
-}
-
 SbColor GltfIvWriter::diffuseColor(const tinygltf::Material & material)
 {
     const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
@@ -301,11 +294,17 @@ SbColor GltfIvWriter::diffuseColor(const tinygltf::Material & material)
     return color;
 }
 
-SoMaterial * GltfIvWriter::convertMaterial(const tinygltf::Material & material)
+void GltfIvWriter::convertMaterial(iv_root_t root, const tinygltf::Material & material)
 {
-    SoMaterial * result = new SoMaterial;
+    SoMaterial * materialNode = new SoMaterial;
 
-    result->diffuseColor = diffuseColor(material);
+    materialNode->diffuseColor = diffuseColor(material);
 
-    return result;
+    root->addChild(materialNode);
+
+    SoMaterialBinding * materialBinding = new SoMaterialBinding;
+
+    materialBinding->value = SoMaterialBinding::Binding::OVERALL;
+
+    root->addChild(materialBinding);
 }
