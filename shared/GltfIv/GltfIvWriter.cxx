@@ -284,12 +284,7 @@ SoMaterial * GltfIvWriter::convertMaterial(const tinygltf::Material & material)
 {
     SoMaterial * result = new SoMaterial;
 
-    result->ambientColor = SbColor{0.2f, 0.2f, 0.2f};
     result->diffuseColor = diffuseColor(material);
-    result->specularColor = SbColor{ 0.0f, 0.0f, 0.0f };
-    result->emissiveColor = SbColor{ 0.0f, 0.0f, 0.0f };
-    result->shininess = 0.2f;
-    result->transparency = 0.0f;
 
     return result;
 }
