@@ -6,7 +6,6 @@
 GltfIvWriter::GltfIvWriter(tinygltf::Model && gltfModel)
     : m_gltfModel{ std::move(gltfModel) }
     , m_ivModel{ new SoSeparator() }
-    , m_positionIndexMap{ }
     , m_normalMap{ }
 {
     m_ivModel->ref();
@@ -130,7 +129,7 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
 
     const std::vector<position_t> positions{ this->positions(primitive) };
     const std::vector<normal_t> normals{ this->normals(primitive) };
-    const std::vector<index_t> indices{ this->indices(primitive) };
+    const indices_t indices{ this->indices(primitive) };
 
     m_ivModel->addChild(convertMaterial(primitive.material));
 
@@ -144,7 +143,7 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
 
     m_ivModel->addChild(convertPositions(uniquePositions));
 
-    updatePositionIndexMap(uniquePositions, positions, indices);
+    const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
 
     SoNormalBinding * normalBinding = new SoNormalBinding;
 
@@ -154,20 +153,12 @@ bool GltfIvWriter::convertTrianglesPrimitive(const tinygltf::Primitive & primiti
 
     m_ivModel->addChild(convertNormals(normals));
 
-    m_ivModel->addChild(convertTriangles(indices, normals));
+    m_ivModel->addChild(convertTriangles(indices, normals, positionIndexMap));
 
     return true;
 }
 
-int GltfIvWriter::indexTypeSize(const tinygltf::Primitive & primitive) const
-{
-    const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(primitive.indices);
-    const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(accessor.bufferView);
-
-    return accessor.ByteStride(bufferView);
-}
-
-std::vector<GltfIvWriter::index_t> GltfIvWriter::indices(const tinygltf::Primitive & primitive)
+GltfIvWriter::indices_t GltfIvWriter::indices(const tinygltf::Primitive & primitive)
 {
     spdlog::trace("retrieve indices from primitive");
 
@@ -175,24 +166,22 @@ std::vector<GltfIvWriter::index_t> GltfIvWriter::indices(const tinygltf::Primiti
 
     ensureAccessorType(accessor, TINYGLTF_TYPE_SCALAR);
 
-    const int indexTypeSize{ this->indexTypeSize(primitive) };
-
     switch (accessor.componentType){
     case TINYGLTF_COMPONENT_TYPE_BYTE:
-        return indices<int8_t>(accessor);
+        return accessorContents<int8_t>(accessor);
     case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-        return indices<uint8_t>(accessor);
+        return accessorContents<uint8_t>(accessor);
     case TINYGLTF_COMPONENT_TYPE_SHORT:
-        return indices<int16_t>(accessor);
+        return accessorContents<int16_t>(accessor);
     case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-        return indices<uint16_t>(accessor);
+        return accessorContents<uint16_t>(accessor);
         // TINYGLTF_COMPONENT_TYPE_INT not supported as per specification https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#accessor-data-types
     case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-        return indices<uint32_t>(accessor);
+        return accessorContents<uint32_t>(accessor);
     case TINYGLTF_COMPONENT_TYPE_FLOAT:
-        return indices<float>(accessor);
+        return accessorContents<float>(accessor);
     default:
-        throw std::invalid_argument(std::format("unsupported index size of {}", indexTypeSize));
+        throw std::invalid_argument(std::format("unsupported component type {}", accessor.componentType));
     }
 }
 
@@ -243,24 +232,13 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & p
     coords->point.setNum(static_cast<int>(positions.size()));
     SbVec3f * ivPointsPtr = coords->point.startEditing();
     
+    static_assert(sizeof(SbVec3f) == sizeof(position_t));
+
     std::memcpy(ivPointsPtr, &positions[0], sizeof(SbVec3f) * positions.size());
 
     coords->point.finishEditing();
 
     return coords;
-}
-
-void GltfIvWriter::updatePositionIndexMap(const std::vector<position_t> & uniquePositions, const std::vector<position_t> & positions, const std::vector<index_t> & indices)
-{
-    std::map<position_t, int32_t> positionMap{};
-
-    for (int32_t i = 0; i < uniquePositions.size(); ++i) {
-        positionMap[uniquePositions[i]] = i;
-    }
-
-    for (const index_t & index : indices) {
-        m_positionIndexMap[index] = static_cast<uint64_t>(positionMap[positions[index]]);
-    }
 }
 
 SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
@@ -288,44 +266,6 @@ SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
     normalNode->vector = normalVectors;
 
     return normalNode;
-}
-
-SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<index_t> & indices, const std::vector<normal_t> & normals)
-{ 
-    SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
-
-    const int indexSize{ static_cast<int>(indices.size() + indices.size() / 4U)  };
-
-    SoMFInt32 coordIndex{};
-    SoMFInt32 normalIndex{};
-
-    coordIndex.setNum(indexSize);
-    normalIndex.setNum(indexSize);
-
-    int32_t * coordIndexPosition = coordIndex.startEditing();
-    int32_t * normalIndexPosition = normalIndex.startEditing();
-
-    constexpr size_t triangle_strip_size{ 4U };
-
-    for (size_t i = 0; i + triangle_strip_size -1 < indices.size(); i += triangle_strip_size) {
-        for (size_t j = 0; j < triangle_strip_size; ++j)
-        {
-            const size_t k = i + j;
-            *coordIndexPosition++ = m_positionIndexMap.at(indices.at(k));
-            *normalIndexPosition++ = m_normalMap.at(normals.at(k));
-        }
-        
-        *coordIndexPosition++ = -1;
-        *normalIndexPosition++ = -1;
-    }
-    coordIndex.finishEditing();
-    normalIndex.finishEditing();
-
-    triangles->materialIndex = 0;
-    triangles->coordIndex = coordIndex;
-    triangles->normalIndex = normalIndex;
-
-    return triangles;
 }
 
 SoMaterial * GltfIvWriter::convertMaterial(int materialIndex)
