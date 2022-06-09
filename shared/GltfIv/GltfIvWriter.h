@@ -50,7 +50,7 @@ private:
             std::vector< index_t> result{};
             result.reserve(originalIndices.size());
 
-            for (original_index_t originalIndex : originalIndices) {
+            for (const original_index_t & originalIndex : originalIndices) {
                 result.push_back(static_cast<index_t>(originalIndex));
             }
             return result;

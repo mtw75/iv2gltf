@@ -80,7 +80,7 @@ bool GltfIvWriter::convertNode(const tinygltf::Node & node)
 {
     spdlog::trace("converting node with name '{}'", node.name);
 
-    return convertMesh(node.mesh) && convertNodes(node.children);
+    return (node.mesh < 0 || convertMesh(node.mesh)) && convertNodes(node.children);
 }
 
 bool GltfIvWriter::convertMesh(int meshIndex)
@@ -177,15 +177,20 @@ std::vector<GltfIvWriter::index_t> GltfIvWriter::indices(const tinygltf::Primiti
 
     const int indexTypeSize{ this->indexTypeSize(primitive) };
 
-    switch (indexTypeSize){
-    case 1:
+    switch (accessor.componentType){
+    case TINYGLTF_COMPONENT_TYPE_BYTE:
+        return indices<int8_t>(accessor);
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
         return indices<uint8_t>(accessor);
-    case 2:
+    case TINYGLTF_COMPONENT_TYPE_SHORT:
+        return indices<int16_t>(accessor);
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
         return indices<uint16_t>(accessor);
-    case 4:
+        // TINYGLTF_COMPONENT_TYPE_INT not supported as per specification https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#accessor-data-types
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
         return indices<uint32_t>(accessor);
-    case 8:
-        return indices<uint64_t>(accessor);
+    case TINYGLTF_COMPONENT_TYPE_FLOAT:
+        return indices<float>(accessor);
     default:
         throw std::invalid_argument(std::format("unsupported index size of {}", indexTypeSize));
     }
@@ -306,8 +311,8 @@ SoIndexedTriangleStripSet * GltfIvWriter::convertTriangles(const std::vector<ind
         for (size_t j = 0; j < triangle_strip_size; ++j)
         {
             const size_t k = i + j;
-            *coordIndexPosition++ = m_positionIndexMap[indices.at(k)];
-            *normalIndexPosition++ = m_normalMap[normals.at(k)];
+            *coordIndexPosition++ = m_positionIndexMap.at(indices.at(k));
+            *normalIndexPosition++ = m_normalMap.at(normals.at(k));
         }
         
         *coordIndexPosition++ = -1;
