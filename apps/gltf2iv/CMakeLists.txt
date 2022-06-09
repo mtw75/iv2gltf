@@ -18,4 +18,7 @@ target_compile_options(gltf2iv
 		  >
 )
 
+set_property(TARGET gltf2iv
+             PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 install(TARGETS gltf2iv DESTINATION .)
