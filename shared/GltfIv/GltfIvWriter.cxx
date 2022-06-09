@@ -122,7 +122,7 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
     spdlog::trace("converting triangles primitive");
 
     const std::vector<position_t> positions{ this->positions(primitive) };
-    const std::vector<normal_t> normals{ this->normals(primitive) };
+    const normals_t normals{ this->normals(primitive) };
     const indices_t indices{ this->indices(primitive) };
 
     root->addChild(convertMaterial(primitive.material));
@@ -143,14 +143,16 @@ void GltfIvWriter::convertTrianglesPrimitive(iv_root_t root, const tinygltf::Pri
 
     root->addChild(normalBinding);
 
-    std::vector<normal_t> uniqueNormals{ unique(normals) };
+    normals_t uniqueNormals{ unique(normals) };
 
     root->addChild(convertNormals(uniqueNormals));
 
     const normal_map_t normalMap{ this->normalMap(uniqueNormals) };
+    const iv_indices_t normalIndices{ this->normalIndices(normals, normalMap)}; 
+
     const index_map_t & positionIndexMap{ this->positionIndexMap(uniquePositions, positions, indices) };
 
-    root->addChild(convertTriangles(indices, normals, normalMap, positionIndexMap));
+    root->addChild(convertTriangles(indices, normalIndices, positionIndexMap));
 }
 
 GltfIvWriter::indices_t GltfIvWriter::indices(const tinygltf::Primitive & primitive)
@@ -236,18 +238,7 @@ SoCoordinate3 * GltfIvWriter::convertPositions(const std::vector<position_t> & p
     return coords;
 }
 
-std::map<GltfIvWriter::normal_t, int32_t> GltfIvWriter::normalMap(const std::vector<normal_t> & normals)
-{
-    normal_map_t result;
-
-    for (int32_t index = 0; index < normals.size(); ++index) {
-        result[normals[index]] = index;
-    }
-
-    return result;
-}
-
-SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
+SoNormal * GltfIvWriter::convertNormals(const normals_t & normals)
 {
     SoNormal * normalNode = new SoNormal;
     
@@ -263,6 +254,35 @@ SoNormal * GltfIvWriter::convertNormals(const std::vector<normal_t> & normals)
     normalNode->vector = normalVectors;
 
     return normalNode;
+}
+
+std::map<GltfIvWriter::normal_t, GltfIvWriter::iv_index_t> GltfIvWriter::normalMap(const normals_t & normals)
+{
+    normal_map_t result;
+
+    for (iv_index_t index = 0; index < normals.size(); ++index) {
+        result[normals[index]] = index;
+    }
+
+    return result;
+}
+
+GltfIvWriter::iv_indices_t GltfIvWriter::normalIndices(const normals_t & normals, const normal_map_t & normalMap)
+{
+    iv_indices_t normalIndices;
+    normalIndices.reserve(normals.size());
+
+    std::transform(
+        normals.cbegin(),
+        normals.cend(),
+        std::back_inserter(normalIndices),
+        [&normalMap] (const normal_t & normal)
+        {
+            return normalMap.at(normal);
+        }
+    );
+
+    return normalIndices;
 }
 
 SoMaterial * GltfIvWriter::convertMaterial(int materialIndex)
