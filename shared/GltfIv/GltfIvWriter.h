@@ -16,29 +16,18 @@ class GltfIvWriter {
 public:
     GltfIvWriter(tinygltf::Model && gltfModel) 
         : m_gltfModel{ std::move(gltfModel) }
-        , m_ivModel{ nullptr }
     {
-    }
-
-    ~GltfIvWriter()
-    {
-        if (m_ivModel) {
-            m_ivModel->unref();
-        }
     }
 
     bool write(std::string filename, bool writeBinary)
     {
         try {
-            if (m_ivModel) {
-                m_ivModel->unref();
-            }
-
             iv_root_t root { new SoSeparator };
             root->ref();
             convertModel(root);
-            m_ivModel = root;
-            return GltfIv::write(filename, root, writeBinary);
+            const bool success{ GltfIv::write(filename, root, writeBinary) };
+            root->unref();
+            return success;
         }
         catch (std::exception exception) {
             spdlog::error(std::format("failed to convert model: {}", exception.what()));
@@ -477,5 +466,4 @@ private:
     }
 
     const tinygltf::Model m_gltfModel;
-    SoSeparator * m_ivModel{ nullptr };
 };
