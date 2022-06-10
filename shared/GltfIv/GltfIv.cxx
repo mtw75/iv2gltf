@@ -1,5 +1,7 @@
 #include "GltfIv.h"
 
+#include <spdlog/stopwatch.h>
+
 #include <Inventor/actions/SoWriteAction.h>
 #include <Inventor/SoOutput.h>
 
@@ -7,6 +9,8 @@
 
 std::optional<tinygltf::Model> GltfIv::read(std::string filename) 
 {
+    spdlog::stopwatch stopwatch;
+    spdlog::trace("reading gltf model from file {}", filename);
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string error_message;
@@ -38,13 +42,14 @@ std::optional<tinygltf::Model> GltfIv::read(std::string filename)
         spdlog::error("failed to read gltf file");
         return std::nullopt;
     }
-    spdlog::debug("successfully read gltf file {}", filename);
+    spdlog::debug("successfully read gltf model from file {} ({} seconds)", filename, stopwatch);
     return model;
 }
 
 bool GltfIv::write(std::string filename, SoSeparator * root, bool isBinary)
 {
-    spdlog::debug("writing open inventor model to file {} (binary: {})", filename, isBinary);
+    spdlog::stopwatch stopwatch;
+    spdlog::trace("writing open inventor model to file {} as {})", filename, (isBinary ? "binary" : "ascii"));
 
     SoOutput out;
     if (!out.openFile(filename.c_str())) {
@@ -56,6 +61,6 @@ bool GltfIv::write(std::string filename, SoSeparator * root, bool isBinary)
     wa.apply(root);
     out.closeFile();
 
-    spdlog::debug("successfully wrote open inventor model to file {} (binary: {})", filename, isBinary);
+    spdlog::debug("successfully wrote open inventor model to file {} as {} ({} seconds)", filename, (isBinary ? "binary" : "ascii"), stopwatch);
     return true;
 }

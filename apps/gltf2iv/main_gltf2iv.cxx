@@ -1,6 +1,7 @@
 #include "GltfIvWriter.h"
 
 #include <spdlog/spdlog.h>
+#include <spdlog/stopwatch.h>
 #include <cxxopts.hpp>
 #include <tiny_gltf.h>
 #include <Inventor/SoDB.h>
@@ -10,6 +11,7 @@
 
 int main(int argc, char * argv[])
 {
+    spdlog::stopwatch stopwatch;
     cxxopts::Options options("gltf2iv", "a converter for gltf to open inventor");
     options.add_options()
         ("i,gltf", "input gltf file", cxxopts::value<std::string>())
@@ -61,7 +63,7 @@ int main(int argc, char * argv[])
     const std::string outputFilename{ result["o"].as<std::string>() };
     const bool writeBinary{ result["b"].as<bool>() };
 
-    spdlog::info("converting {} to {} (binary: {}) ", inputFilename, outputFilename, writeBinary);
+    spdlog::info("converting {} to {} as {} ", inputFilename, outputFilename, (writeBinary ? "binary" : "ascii"));
 
     std::optional<tinygltf::Model> maybeGltfModel{ GltfIv::read(inputFilename) };
     
@@ -70,16 +72,16 @@ int main(int argc, char * argv[])
         GltfIvWriter writer{std::move(maybeGltfModel.value())};
         
         if (writer.write(outputFilename, writeBinary)) {
-            spdlog::info("successfully converted {} to {}", inputFilename, outputFilename);
+            spdlog::info("successfully converted {} to {} ({} seconds)", inputFilename, outputFilename, stopwatch);
             return EXIT_SUCCESS;
         }
         else {
-            spdlog::warn("failed to convert {} to {}", inputFilename, outputFilename);
+            spdlog::warn("failed to convert {} to {} ({} seconds)", inputFilename, outputFilename, stopwatch);
             return EXIT_FAILURE;
         }
     } 
     else {
-        spdlog::warn("failed to read {}", inputFilename);
+        spdlog::warn("failed to read {} ({} seconds)", inputFilename, stopwatch);
         return EXIT_FAILURE;
     }
 }

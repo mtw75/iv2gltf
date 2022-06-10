@@ -8,6 +8,7 @@
 #include <Inventor/nodes/SoMaterial.h>
 
 #include <gsl/gsl>
+#include <spdlog/stopwatch.h>
 
 #include <map>
 #include <variant>
@@ -21,6 +22,7 @@ public:
 
     bool write(std::string filename, bool writeBinary)
     {
+        spdlog::trace("convert gltf model to open inventor and write it to file {} as {}", filename, writeBinary ? "binary" : "ascii");
         try {
             iv_root_t root { new SoSeparator };
             root->ref();
@@ -55,7 +57,8 @@ private:
     
     void convertModel(iv_root_t root) const
     {
-        spdlog::trace("converting gltf model to open inventor model");
+        spdlog::stopwatch stopwatch;
+        spdlog::trace("convert gltf model to open inventor model");
 
         std::for_each(
             m_gltfModel.scenes.cbegin(),
@@ -65,11 +68,12 @@ private:
                 convertScene(root, scene);
             }
         );
+        spdlog::debug("finished converting gltf model to open inventor model ({:.3} seconds)", stopwatch);
     }
 
     void convertScene(iv_root_t root, const tinygltf::Scene & scene) const
     {
-        spdlog::trace("converting scene with name '{}'", scene.name);
+        spdlog::trace("converting gltf scene with name '{}'", scene.name);
 
         SoSeparator * sceneRoot{ new SoSeparator };
 
@@ -80,6 +84,8 @@ private:
 
     void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices) const
     {
+        spdlog::trace("converting {} gltf nodes", nodeIndices.size());
+
         std::for_each(
             nodeIndices.cbegin(),
             nodeIndices.cend(),
@@ -92,7 +98,7 @@ private:
 
     void convertNode(iv_root_t root, const tinygltf::Node & node) const
     {
-        spdlog::trace("converting node with name '{}'", node.name);
+        spdlog::trace("converting gltf node with name '{}'", node.name);
 
         SoSeparator * nodeRoot{ new SoSeparator };
 
@@ -106,7 +112,7 @@ private:
 
     void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh) const
     {
-        spdlog::trace("converting mesh with name '{}'", mesh.name);
+        spdlog::trace("converting gltf mesh with name '{}'", mesh.name);
 
         const std::vector<tinygltf::Primitive> & primitives{ mesh.primitives };
 
@@ -122,7 +128,7 @@ private:
 
     void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
     {
-        spdlog::trace("converting primitive with mode {}", primitive.mode);
+        spdlog::trace("converting gltf primitive with mode {}", primitive.mode);
 
         switch (primitive.mode) {
         case TINYGLTF_MODE_TRIANGLES:
@@ -135,7 +141,7 @@ private:
 
     void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
     {
-        spdlog::trace("converting triangles primitive");
+        spdlog::trace("converting gltf triangles primitive");
 
         if (primitive.material >= 0) {
             convertMaterial(root, m_gltfModel.materials.at(static_cast<size_t>(primitive.material)));
@@ -146,6 +152,8 @@ private:
 
     static void convertMaterial(iv_root_t root, const tinygltf::Material & material)
     {
+        spdlog::trace("converting gltf material with name '{}'", material.name);
+
         SoMaterial * materialNode = new SoMaterial;
         materialNode->diffuseColor = diffuseColor(material);
         root->addChild(materialNode);
@@ -157,6 +165,8 @@ private:
 
     static SbColor diffuseColor(const tinygltf::Material & material)
     {
+        spdlog::trace("extracting diffuse color from gltf material");
+
         const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
 
         return SbColor{
@@ -177,6 +187,8 @@ private:
         if (positionIndices.size() % triangle_strip_size != 0) {
             throw std::invalid_argument(std::format("number of indices ({}) is not divisible by the triangel stip size", positionIndices.size(), triangle_strip_size));
         }
+
+        spdlog::trace("converting {} triangle strips from gltf primitive", positionIndices.size() / triangle_strip_size);
 
         SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
@@ -214,6 +226,8 @@ private:
 
     iv_indices_t convertPositions(iv_root_t root, const tinygltf::Primitive & primitive) const
     {
+        spdlog::trace("converting gltf positions from gltf primitive");
+
         const positions_t positions{ GltfIvWriter::positions(primitive) };
         const positions_t uniquePositions{ unique<position_t>(positions) };
 
@@ -224,6 +238,8 @@ private:
 
     static void convertPositions(iv_root_t root, const positions_t & positions)
     {
+        spdlog::trace("converting {} gltf positions", positions.size());
+
         static_assert(sizeof(SbVec3f) == sizeof(position_t));
 
         SoCoordinate3 * coords = new SoCoordinate3;
@@ -237,6 +253,8 @@ private:
 
     iv_indices_t convertNormals(iv_root_t root, const tinygltf::Primitive & primitive) const
     {
+        spdlog::trace("converting gltf normals from gltf primitive");
+
         SoNormalBinding * normalBinding = new SoNormalBinding;
         normalBinding->value = SoNormalBinding::Binding::PER_VERTEX_INDEXED;
         root->addChild(normalBinding);
@@ -256,6 +274,8 @@ private:
 
     static void convertNormals(iv_root_t root, const normals_t & normals)
     {
+        spdlog::trace("converting {} gltf normals", normals.size());
+
         SoMFVec3f normalVectors{};
         normalVectors.setNum(static_cast<int>(normals.size()));
         SbVec3f * normalVectorPos = normalVectors.startEditing();
@@ -269,6 +289,8 @@ private:
 
     static normal_map_t normalMap(const normals_t & normals)
     {
+        spdlog::trace("create index map for {} normals", normals.size());
+
         normal_map_t result;
 
         for (size_t index = 0; index < normals.size(); ++index) {
@@ -280,6 +302,8 @@ private:
 
     static iv_indices_t normalIndices(const normals_t & normals, const normal_map_t & normalMap)
     {
+        spdlog::trace("create index for {} normals", normals.size());
+
         iv_indices_t normalIndices;
         normalIndices.reserve(normals.size());
 
@@ -299,6 +323,8 @@ private:
     template<typename index_t>
     static iv_indices_t positionIndices(const std::vector<index_t> & indices, const positions_t & positions, const position_map_t & positionMap)
     {
+        spdlog::trace("create index for {} positions", indices.size());
+
         iv_indices_t positionIndices;
         positionIndices.reserve(indices.size());
 
@@ -317,6 +343,8 @@ private:
 
     static iv_indices_t positionIndices(const gltf_indices_t & indices, const positions_t & positions, const position_map_t & positionMap)
     {
+        spdlog::trace("translate gltf index type for determining index of positions");
+
         if (std::holds_alternative<std::vector<uint8_t>>(indices)) {
             return positionIndices<uint8_t>(std::get<std::vector<uint8_t>>(indices), positions, positionMap);
         }
@@ -341,6 +369,8 @@ private:
 
     static position_map_t positionMap(const positions_t & positions)
     {
+        spdlog::trace("create index map for {} positions", positions.size());
+
         position_map_t positionMap;
 
         for (size_t i = 0; i < positions.size(); ++i) {
@@ -414,6 +444,8 @@ private:
 
     static void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType)
     {
+        spdlog::trace("ensure gltf accessor type is {}", accessorType);
+
         if (accessor.type != accessorType) {
             throw std::domain_error(std::format("expected accessor type {} instead of {}", accessorType, accessor.type));
         }
@@ -422,6 +454,8 @@ private:
     template<class T>
     std::vector<T> accessorContents(const tinygltf::Accessor & accessor) const
     {
+        spdlog::trace("read contents of gltf accessor with name '{}'", accessor.name);
+
         const int bufferViewIndex{ accessor.bufferView };
         if (bufferViewIndex < 0) {
             spdlog::warn("accessor buffer view not found at index {}", bufferViewIndex);
@@ -458,6 +492,7 @@ private:
 
     template<class T>
     static std::vector<T> unique(const std::vector<T> & items) {
+        spdlog::trace("remove duplicates among {} items", items.size());
         std::vector<T> unqiueItems{ items };
         std::sort(unqiueItems.begin(), unqiueItems.end());
         unqiueItems.erase(std::unique(unqiueItems.begin(), unqiueItems.end()), unqiueItems.end());
