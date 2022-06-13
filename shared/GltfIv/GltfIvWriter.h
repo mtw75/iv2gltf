@@ -123,16 +123,30 @@ private:
         );
     }
 
+    static constexpr std::string stringifyPrimitiveMode(int primitiveMode)
+    {
+        switch (primitiveMode) {
+        case TINYGLTF_MODE_POINTS: return std::format("POINTS ({})", TINYGLTF_MODE_POINTS);
+        case TINYGLTF_MODE_LINE: return std::format("LINE ({})", TINYGLTF_MODE_LINE);
+        case TINYGLTF_MODE_LINE_LOOP: return std::format("LINE_LOOP ({})", TINYGLTF_MODE_LINE_LOOP);
+        case TINYGLTF_MODE_LINE_STRIP: return std::format("LINE_STRIP ({})", TINYGLTF_MODE_LINE_STRIP);
+        case TINYGLTF_MODE_TRIANGLES: return std::format("TRIANGLES ({})", TINYGLTF_MODE_TRIANGLES);
+        case TINYGLTF_MODE_TRIANGLE_STRIP: return std::format("TRIANGLE_STRIP ({})", TINYGLTF_MODE_TRIANGLE_STRIP);
+        case TINYGLTF_MODE_TRIANGLE_FAN: return std::format("TRIANGLE_FAN ({})", TINYGLTF_MODE_TRIANGLE_FAN);
+        default: return std::format("UNKNOWN ({})", primitiveMode);
+        }
+    }
+
     void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
     {
-        spdlog::trace("converting gltf primitive with mode {}", primitive.mode);
+        spdlog::trace("converting gltf primitive with mode {}", stringifyPrimitiveMode(primitive.mode));
 
         switch (primitive.mode) {
         case TINYGLTF_MODE_TRIANGLES:
             convertTrianglesPrimitive(root, primitive);
             break;
         default:
-            spdlog::warn("skipping unsupported primitive with mode {}", primitive.mode);
+            spdlog::warn("skipping primitive with unsupported mode {}", stringifyPrimitiveMode(primitive.mode));
         }
     }
 
@@ -182,10 +196,10 @@ private:
         constexpr size_t triangle_strip_size{ 3U };
 
         if (positionIndices.size() % triangle_strip_size != 0) {
-            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel stip size", positionIndices.size(), triangle_strip_size));
+            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size));
         }
 
-        spdlog::trace("converting {} triangle strips from gltf primitive", positionIndices.size() / triangle_strip_size);
+        spdlog::trace("converting {} triangles from gltf primitive", positionIndices.size() / triangle_strip_size);
 
         SoIndexedTriangleStripSet * triangles = new SoIndexedTriangleStripSet;
 
@@ -377,21 +391,64 @@ private:
         }
     }
 
+    static constexpr std::string stringifyAccessorType(int accessorType)
+    {
+        switch (accessorType) {
+        case TINYGLTF_TYPE_VEC2: return std::format("VEC2 ({})", TINYGLTF_TYPE_VEC2);
+        case TINYGLTF_TYPE_VEC3: return std::format("VEC3 ({})", TINYGLTF_TYPE_VEC3);
+        case TINYGLTF_TYPE_VEC4: return std::format("VEC4 ({})", TINYGLTF_TYPE_VEC4);
+        case TINYGLTF_TYPE_MAT2: return std::format("MAT2 ({})", TINYGLTF_TYPE_MAT2);
+        case TINYGLTF_TYPE_MAT3: return std::format("MAT3 ({})", TINYGLTF_TYPE_MAT3);
+        case TINYGLTF_TYPE_MAT4: return std::format("MAT4 ({})", TINYGLTF_TYPE_MAT4);
+        case TINYGLTF_TYPE_SCALAR: return std::format("SCALAR ({})", TINYGLTF_TYPE_SCALAR);
+        case TINYGLTF_TYPE_VECTOR: return std::format("VECTOR ({})", TINYGLTF_TYPE_VECTOR);
+        case TINYGLTF_TYPE_MATRIX: return std::format("MATRIX ({})", TINYGLTF_TYPE_MATRIX);
+        default: return std::format("UNKNOWN ({})", accessorType);
+        }
+    }
+
     static void ensureAccessorType(const tinygltf::Accessor & accessor, int accessorType)
     {
-        spdlog::trace("ensure gltf accessor type is {}", accessorType);
+        spdlog::trace("ensure gltf accessor type is {}", stringifyAccessorType(accessorType));
 
         if (accessor.type != accessorType) {
-            throw std::domain_error(std::format("expected accessor type {} instead of {}", accessorType, accessor.type));
+            throw std::domain_error(
+                std::format(
+                    "expected accessor type {} instead of {}", 
+                    stringifyAccessorType(accessorType), 
+                    stringifyAccessorType(accessor.type)
+                )
+            );
+        }
+    }
+
+    static constexpr std::string stringifyAccessorComponentType(int accessorComponentType)
+    {
+        switch (accessorComponentType) {
+        case TINYGLTF_COMPONENT_TYPE_BYTE: return std::format("BYTE ({})", TINYGLTF_COMPONENT_TYPE_BYTE);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: return std::format("UNSIGNED_BYTE ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
+        case TINYGLTF_COMPONENT_TYPE_SHORT: return std::format("SHORT ({})", TINYGLTF_COMPONENT_TYPE_SHORT);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: return std::format("UNSIGNED_SHORT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
+        case TINYGLTF_COMPONENT_TYPE_INT: return std::format("INT ({})", TINYGLTF_COMPONENT_TYPE_INT);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: return std::format("UNSIGNED_INT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT);
+        case TINYGLTF_COMPONENT_TYPE_FLOAT: return std::format("FLOAT ({})", TINYGLTF_COMPONENT_TYPE_FLOAT);
+        case TINYGLTF_COMPONENT_TYPE_DOUBLE: return std::format("DOUBLE ({})", TINYGLTF_COMPONENT_TYPE_DOUBLE);
+        default: return std::format("UNKNOWN ({})", accessorComponentType);
         }
     }
 
     static void ensureAccessorComponentType(const tinygltf::Accessor & accessor, int accessorComponentType)
     {
-        spdlog::trace("ensure gltf accessor component type is {}", accessorComponentType);
+        spdlog::trace("ensure gltf accessor component type is {}", stringifyAccessorComponentType(accessorComponentType));
 
         if (accessor.componentType != accessorComponentType) {
-            throw std::domain_error(std::format("expected accessor component type {} instead of {}", accessorComponentType, accessor.componentType));
+            throw std::domain_error(
+                std::format(
+                    "expected accessor component type {} instead of {}", 
+                    stringifyAccessorComponentType(accessorComponentType), 
+                    stringifyAccessorComponentType(accessor.componentType)
+                )
+            );
         }
     }
 
