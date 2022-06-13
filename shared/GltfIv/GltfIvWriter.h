@@ -591,7 +591,7 @@ private:
     static void ensureByteOffsetPlusByteLengthWithinBuffer(const tinygltf::Accessor & accessor, const tinygltf::BufferView & bufferView, const tinygltf::Buffer & buffer)
     {
         const size_t byteLengthByAccssor{ accessor.count * sizeof(T) };
-        if (byteLengthByAccssor >= buffer.data.size() || bufferView.byteOffset  >= buffer.data.size() - byteLengthByAccssor) {
+        if (byteLengthByAccssor > buffer.data.size() || bufferView.byteOffset  > buffer.data.size() - byteLengthByAccssor) {
             throw std::out_of_range(
                 std::format(
                     "byte offset ({}) plus the number of bytes to copy ({}) is beyond the length of the buffer ({})",
