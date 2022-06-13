@@ -176,13 +176,13 @@ private:
     static void convertTriangles(iv_root_t root, const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
     {
         if (positionIndices.size() != normalIndices.size()) {
-            throw std::invalid_argument(std::format("mismatching number of indices ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
+            throw std::invalid_argument(std::format("mismatching number of positions ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
         }
 
         constexpr size_t triangle_strip_size{ 3U };
 
         if (positionIndices.size() % triangle_strip_size != 0) {
-            throw std::invalid_argument(std::format("number of indices ({}) is not divisible by the triangel stip size", positionIndices.size(), triangle_strip_size));
+            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel stip size", positionIndices.size(), triangle_strip_size));
         }
 
         spdlog::trace("converting {} triangle strips from gltf primitive", positionIndices.size() / triangle_strip_size);
@@ -257,10 +257,6 @@ private:
         root->addChild(normalBinding);
 
         const normals_t normals{ GltfIvWriter::normals(primitive) };
-
-        if (normals.empty()) {
-            return {};
-        }
 
         const normals_t uniqueNormals{ unique(normals) };
 
@@ -357,6 +353,7 @@ private:
         if (accessorIndex >= 0) {
             const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
             ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
+            ensureAccessorComponentType(accessor, TINYGLTF_COMPONENT_TYPE_FLOAT);
             return accessorContents<position_t>(accessor);
         } else {
             spdlog::warn("positions accessor at index {} not found", accessorIndex);
@@ -372,6 +369,7 @@ private:
         if (accessorIndex >= 0) {
             const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
             ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
+            ensureAccessorComponentType(accessor, TINYGLTF_COMPONENT_TYPE_FLOAT);
             return accessorContents<normal_t>(accessor);
         } else {
             spdlog::warn("normals accessor at index {} not found", accessorIndex);
@@ -388,6 +386,59 @@ private:
         }
     }
 
+    static void ensureAccessorComponentType(const tinygltf::Accessor & accessor, int accessorComponentType)
+    {
+        spdlog::trace("ensure gltf accessor component type is {}", accessorComponentType);
+
+        if (accessor.componentType != accessorComponentType) {
+            throw std::domain_error(std::format("expected accessor component type {} instead of {}", accessorComponentType, accessor.componentType));
+        }
+    }
+
+    template<class T>
+    static void ensureByteStrideMatchesType(const tinygltf::Accessor & accessor, const tinygltf::BufferView & bufferView)
+    {
+        const int byteStride{ accessor.ByteStride(bufferView) };
+        if (byteStride != sizeof(T)) {
+            throw std::invalid_argument(
+                std::format(
+                    "mismatching size of the buffer's byte stride ({}) and the size of the target type ({})",
+                    byteStride,
+                    sizeof(T)
+                )
+            );
+        }
+    }
+
+    static void ensureByteOffsetWithinBuffer( const tinygltf::BufferView & bufferView, const tinygltf::Buffer & buffer)
+    {
+        if (bufferView.byteOffset >= buffer.data.size()) {
+            throw std::out_of_range(
+                std::format(
+                    "byte offset {} is outside of the range of a buffer with size {}",
+                    bufferView.byteOffset,
+                    buffer.data.size()
+                )
+            );
+        }
+    }
+
+    template<class T>
+    static void ensureByteOffsetPlusByteLengthWithinBuffer(const tinygltf::Accessor & accessor, const tinygltf::BufferView & bufferView, const tinygltf::Buffer & buffer)
+    {
+        const size_t byteLengthByAccssor{ accessor.count * sizeof(T) };
+        if (byteLengthByAccssor >= buffer.data.size() || bufferView.byteOffset  >= buffer.data.size() - byteLengthByAccssor) {
+            throw std::out_of_range(
+                std::format(
+                    "byte offset ({}) plus the number of bytes to copy ({}) is beyond the length of the buffer ({})",
+                    bufferView.byteOffset,
+                    byteLengthByAccssor,
+                    buffer.data.size()
+                )
+            );
+        }
+    }
+
     template<class T>
     std::vector<T> accessorContents(const tinygltf::Accessor & accessor) const
     {
@@ -400,6 +451,8 @@ private:
         }
         const tinygltf::BufferView & bufferView = m_gltfModel.bufferViews.at(static_cast<size_t>(bufferViewIndex));
 
+        ensureByteStrideMatchesType<T>(accessor, bufferView);
+
         const int bufferIndex{ bufferView.buffer };
         if (bufferIndex < 0) {
             spdlog::warn("accessor buffer not found at index {}", bufferIndex);
@@ -408,21 +461,13 @@ private:
 
         const tinygltf::Buffer & buffer = m_gltfModel.buffers.at(static_cast<size_t>(bufferIndex));
 
-        const int byteStride{ accessor.ByteStride(bufferView) };
-        if (byteStride != sizeof(T)) {
-            throw std::invalid_argument(
-                std::format(
-                    "mismatching size of the buffer's byte stride ({}) and the size of the target type ({})",
-                    byteStride,
-                    sizeof(T)
-                )
-            );
-        }
+        ensureByteOffsetWithinBuffer(bufferView, buffer);
+        ensureByteOffsetPlusByteLengthWithinBuffer<T>(accessor, bufferView, buffer);
 
         std::vector<T> contents;
         contents.resize(accessor.count);
-
-        std::memcpy(&contents[0], &buffer.data[bufferView.byteOffset], bufferView.byteLength);
+        
+        std::memcpy(&contents[0], &buffer.data[bufferView.byteOffset], accessor.count * sizeof(T));
 
         return contents;
     }
