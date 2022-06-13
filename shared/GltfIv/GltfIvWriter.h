@@ -50,9 +50,6 @@ private:
     using normals_t = std::vector<normal_t>;
     using normal_map_t = std::map<normal_t, iv_index_t>;
 
-    using texture_coordinate_t = std::array<float, 2>;
-    using gltf_indices_t = std::variant<std::vector<uint8_t>, std::vector<int8_t>, std::vector<uint16_t>, std::vector<int16_t>, std::vector<uint32_t>, std::vector<float>>;
-
     using iv_root_t = gsl::not_null<SoSeparator *>;
     
     void convertModel(iv_root_t root) const
@@ -233,7 +230,7 @@ private:
 
         convertPositions(root, uniquePositions);
 
-        return positionIndices(indices(primitive), positions, positionMap(uniquePositions));
+        return positionIndices( positions, positionMap(uniquePositions));
     }
 
     static void convertPositions(iv_root_t root, const positions_t & positions)
@@ -320,51 +317,24 @@ private:
         return normalIndices;
     }
 
-    template<typename index_t>
-    static iv_indices_t positionIndices(const std::vector<index_t> & indices, const positions_t & positions, const position_map_t & positionMap)
+    static iv_indices_t positionIndices(const positions_t & positions, const position_map_t & positionMap)
     {
-        spdlog::trace("create index for {} positions", indices.size());
+        spdlog::trace("create index for {} positions", positions.size());
 
         iv_indices_t positionIndices;
-        positionIndices.reserve(indices.size());
+        positionIndices.reserve(positions.size());
 
         std::transform(
-            indices.cbegin(),
-            indices.cend(),
+            positions.cbegin(),
+            positions.cend(),
             std::back_inserter(positionIndices),
-            [&positions, &positionMap] (const index_t & index)
+            [&positions, &positionMap] (const position_t & position)
             {
-                return positionMap.at(positions.at(static_cast<size_t>(index)));               
+                return positionMap.at(position);               
             }
         );
 
         return positionIndices;
-    }
-
-    static iv_indices_t positionIndices(const gltf_indices_t & indices, const positions_t & positions, const position_map_t & positionMap)
-    {
-        spdlog::trace("translate gltf index type for determining index of positions");
-
-        if (std::holds_alternative<std::vector<uint8_t>>(indices)) {
-            return positionIndices<uint8_t>(std::get<std::vector<uint8_t>>(indices), positions, positionMap);
-        }
-        else if (std::holds_alternative<std::vector<int8_t>>(indices)) {
-            return positionIndices<int8_t>(std::get<std::vector<int8_t>>(indices), positions, positionMap);
-        }
-        else if (std::holds_alternative<std::vector<uint16_t>>(indices)) {
-            return positionIndices<uint16_t>(std::get<std::vector<uint16_t>>(indices), positions, positionMap);
-        }
-        else if (std::holds_alternative<std::vector<int16_t>>(indices)) {
-            return positionIndices<int16_t>(std::get<std::vector<int16_t>>(indices), positions, positionMap);
-        }
-        else if (std::holds_alternative<std::vector<uint32_t>>(indices)) {
-            return positionIndices<uint32_t>(std::get<std::vector<uint32_t>>(indices), positions, positionMap);
-        }
-        else if (std::holds_alternative<std::vector<float>>(indices)) {
-            return positionIndices<float>(std::get<std::vector<float>>(indices), positions, positionMap);
-        }
-
-        throw std::invalid_argument("unsupported index type");
     }
 
     static position_map_t positionMap(const positions_t & positions)
@@ -406,39 +376,6 @@ private:
         } else {
             spdlog::warn("normals accessor at index {} not found", accessorIndex);
             return {};
-        }
-    }
-
-    gltf_indices_t indices(const tinygltf::Primitive & primitive) const
-    {
-        spdlog::trace("retrieve indices from primitive");
-
-        const int accessorIndex{ primitive.indices };
-        if (accessorIndex < 0) {
-            spdlog::warn("indices accessor at index {} not found", accessorIndex);
-            return {};
-        }
-
-        const tinygltf::Accessor & accessor = m_gltfModel.accessors.at(static_cast<size_t>(accessorIndex));
-
-        ensureAccessorType(accessor, TINYGLTF_TYPE_SCALAR);
-
-        switch (accessor.componentType) {
-        case TINYGLTF_COMPONENT_TYPE_BYTE:
-            return accessorContents<int8_t>(accessor);
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-            return accessorContents<uint8_t>(accessor);
-        case TINYGLTF_COMPONENT_TYPE_SHORT:
-            return accessorContents<int16_t>(accessor);
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-            return accessorContents<uint16_t>(accessor);
-            // TINYGLTF_COMPONENT_TYPE_INT not supported as per specification https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#accessor-data-types
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-            return accessorContents<uint32_t>(accessor);
-        case TINYGLTF_COMPONENT_TYPE_FLOAT:
-            return accessorContents<float>(accessor);
-        default:
-            throw std::invalid_argument(std::format("unsupported component type {}", accessor.componentType));
         }
     }
 
