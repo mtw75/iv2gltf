@@ -2,6 +2,11 @@
 
 #include "GltfIv.h"
 
+
+#include <Inventor/nodes/SoScale.h>
+#include <Inventor/nodes/SoRotation.h>
+#include <Inventor/nodes/SoTranslation.h>
+
 #include <Inventor/nodes/SoCoordinate3.h>
 #include <Inventor/nodes/SoNormal.h>
 #include <Inventor/nodes/SoIndexedTriangleStripSet.h>
@@ -97,8 +102,15 @@ private:
     {
         spdlog::trace("converting gltf node with name '{}'", node.name);
 
-        SoSeparator * nodeRoot{ new SoSeparator };
+        if (hasZeroScale(node)) {
+            spdlog::debug("skipping gltf node with zero scale");
+            return;
+        }
 
+        SoSeparator * nodeRoot{ new SoSeparator };
+        
+        convertTransform(nodeRoot, node);
+        
         if (node.mesh >= 0) {
             convertMesh(nodeRoot, m_gltfModel.meshes.at(static_cast<size_t>(node.mesh)));
         }
@@ -106,6 +118,99 @@ private:
 
         root->addChild(nodeRoot);
     }
+
+    static bool hasZeroScale(const tinygltf::Node & node)
+    {
+        return hasScale(node) && node.scale[0] == 0.0 && node.scale[1] == 0.0 && node.scale[2] == 0.0;
+    }
+
+    static void convertTransform(iv_root_t root, const tinygltf::Node & node)
+    {
+        convertScale(root, node);
+        convertRotation(root, node);
+        convertTranslation(root, node);
+    }
+
+    static void convertScale(iv_root_t root, const tinygltf::Node & node)
+    {
+        if (hasScale(node)) {
+            spdlog::trace("converting scale [{:.4}, {:.4}, {:.4}] for gltf node", node.scale[0], node.scale[1], node.scale[2]);
+
+            SoScale * scaleNode{ new SoScale };
+
+            SoSFVec3f scaleVector;
+
+            scaleVector.setValue(
+                static_cast<float>(node.scale[0]),
+                static_cast<float>(node.scale[1]),
+                static_cast<float>(node.scale[2])
+            );
+
+            scaleNode->scaleFactor = scaleVector;
+
+            root->addChild(scaleNode);
+        }
+    }
+
+    inline static bool hasScale(const tinygltf::Node & node)
+    {
+        return node.scale.size() == 3U;
+    }
+
+    static void convertRotation(iv_root_t root, const tinygltf::Node & node)
+    {
+        if (hasRotation(node)) {
+            spdlog::trace("converting rotation [{:.4}, {:.4}, {:.4}, {:.4}] for gltf node", node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]);
+
+            SoRotation * rotationNode{ new SoRotation };
+
+            SoSFRotation rotation;
+
+            rotation.setValue(
+                static_cast<float>(node.rotation[0]),
+                static_cast<float>(node.rotation[1]),
+                static_cast<float>(node.rotation[2]),
+                static_cast<float>(node.rotation[3])
+            );
+
+            rotationNode->rotation = rotation;
+
+            root->addChild(rotationNode);
+        }
+    }
+
+    inline static bool hasRotation(const tinygltf::Node & node)
+    {
+        return node.rotation.size() == 4U;
+    }
+
+    static void convertTranslation(iv_root_t root, const tinygltf::Node & node)
+    {
+        if (hasTranslation(node)) {
+
+            spdlog::trace("converting translation [{:.4}, {:.4}, {:.4}] for gltf node", node.translation[0], node.translation[1], node.translation[2]);
+
+            SoTranslation * translationNode{ new SoTranslation };
+
+            SoSFVec3f translation;
+
+            translation.setValue(
+                static_cast<float>(node.translation[0]),
+                static_cast<float>(node.translation[1]),
+                static_cast<float>(node.translation[2])
+            );
+
+            translationNode->translation = translation;
+
+            root->addChild(translationNode);
+        }
+    }
+
+    inline static bool hasTranslation(const tinygltf::Node & node)
+    {
+        return node.translation.size() == 3U;
+    }
+
 
     void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh) const
     {
@@ -196,7 +301,9 @@ private:
         constexpr size_t triangle_strip_size{ 3U };
 
         if (positionIndices.size() % triangle_strip_size != 0) {
-            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size));
+            //throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size));
+            spdlog::warn("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size);
+            return;
         }
 
         spdlog::trace("converting {} triangles from gltf primitive", positionIndices.size() / triangle_strip_size);
