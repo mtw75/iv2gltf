@@ -4,8 +4,6 @@ find_path(PNGPP_INCLUDE_DIRS "png++/color.hpp")
 find_package(libpng CONFIG REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
 set(SRC
-	IvGltfReader.h
-	IvGltfReader.cxx
 	IvGltfWriter.h
 	IvGltfWriter.cxx
 	IvGltf.h

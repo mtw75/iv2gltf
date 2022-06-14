@@ -5,8 +5,11 @@
     "coin",  
     "tinygltf",
     "cxxopts",
-	"libpng", 
-	"pngpp"
+	"libpng",
+    "pngpp",
+    "fmt",
+    "spdlog",
+    "ms-gsl"
   ]
     
 }

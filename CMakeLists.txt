@@ -44,4 +44,6 @@ if(WIN32)
 endif()
 
 add_subdirectory(shared/IvGltf)
+add_subdirectory(shared/GltfIv)
 add_subdirectory(apps/iv2gltf)
+add_subdirectory(apps/gltf2iv)
