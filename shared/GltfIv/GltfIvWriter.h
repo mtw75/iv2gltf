@@ -356,6 +356,7 @@ private:
 
             SoMaterial * materialNode = new SoMaterial;
             materialNode->diffuseColor = diffuseColor(material);
+            materialNode->emissiveColor = emissiveColor(material);
             root->addChild(materialNode);
             m_materials.insert(std::make_pair(materialIndex, materialNode));
         }
@@ -365,16 +366,46 @@ private:
         root->addChild(materialBinding);
     }
 
+    static void ensureColorVectorLength(const std::vector<double> & color, size_t expectedLength) {
+
+        if (color.size() != expectedLength) {
+            throw std::invalid_argument(
+                std::format(
+                    "color vector is of length {} as opposed to the expected length {}", 
+                    color.size(), 
+                    expectedLength
+                )
+            );
+        }
+    }
+
     static SbColor diffuseColor(const tinygltf::Material & material)
     {
         spdlog::trace("extracting diffuse color from gltf material");
 
         const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
 
+        ensureColorVectorLength(baseColorFactor, 4U);
+
         return SbColor{
             static_cast<float>(baseColorFactor[0]),
             static_cast<float>(baseColorFactor[1]),
             static_cast<float>(baseColorFactor[2])
+        };
+    }
+
+    static SbColor emissiveColor(const tinygltf::Material & material)
+    {
+        spdlog::trace("extracting diffuse color from gltf material");
+
+        const std::vector<double> & emissiveFactor{ material.emissiveFactor };
+
+        ensureColorVectorLength(emissiveFactor, 3U);
+
+        return SbColor{
+            static_cast<float>(emissiveFactor[0]),
+            static_cast<float>(emissiveFactor[1]),
+            static_cast<float>(emissiveFactor[2])
         };
     }
 
