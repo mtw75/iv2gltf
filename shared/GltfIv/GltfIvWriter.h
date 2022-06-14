@@ -46,8 +46,8 @@ public:
             root->unref();
             return success;
         }
-        catch (std::exception exception) {
-            spdlog::error(std::format("failed to convert model: {}", exception.what()));
+        catch (const std::exception & exception) {
+            spdlog::error(fmt::format("failed to convert model: {}", exception.what()));
             return false;
         }
     }
@@ -311,17 +311,17 @@ private:
         }
     }
 
-    static constexpr std::string stringifyPrimitiveMode(int primitiveMode)
+    static std::string stringifyPrimitiveMode(int primitiveMode)
     {
         switch (primitiveMode) {
-        case TINYGLTF_MODE_POINTS: return std::format("POINTS ({})", TINYGLTF_MODE_POINTS);
-        case TINYGLTF_MODE_LINE: return std::format("LINE ({})", TINYGLTF_MODE_LINE);
-        case TINYGLTF_MODE_LINE_LOOP: return std::format("LINE_LOOP ({})", TINYGLTF_MODE_LINE_LOOP);
-        case TINYGLTF_MODE_LINE_STRIP: return std::format("LINE_STRIP ({})", TINYGLTF_MODE_LINE_STRIP);
-        case TINYGLTF_MODE_TRIANGLES: return std::format("TRIANGLES ({})", TINYGLTF_MODE_TRIANGLES);
-        case TINYGLTF_MODE_TRIANGLE_STRIP: return std::format("TRIANGLE_STRIP ({})", TINYGLTF_MODE_TRIANGLE_STRIP);
-        case TINYGLTF_MODE_TRIANGLE_FAN: return std::format("TRIANGLE_FAN ({})", TINYGLTF_MODE_TRIANGLE_FAN);
-        default: return std::format("UNKNOWN ({})", primitiveMode);
+        case TINYGLTF_MODE_POINTS: return fmt::format("POINTS ({})", TINYGLTF_MODE_POINTS);
+        case TINYGLTF_MODE_LINE: return fmt::format("LINE ({})", TINYGLTF_MODE_LINE);
+        case TINYGLTF_MODE_LINE_LOOP: return fmt::format("LINE_LOOP ({})", TINYGLTF_MODE_LINE_LOOP);
+        case TINYGLTF_MODE_LINE_STRIP: return fmt::format("LINE_STRIP ({})", TINYGLTF_MODE_LINE_STRIP);
+        case TINYGLTF_MODE_TRIANGLES: return fmt::format("TRIANGLES ({})", TINYGLTF_MODE_TRIANGLES);
+        case TINYGLTF_MODE_TRIANGLE_STRIP: return fmt::format("TRIANGLE_STRIP ({})", TINYGLTF_MODE_TRIANGLE_STRIP);
+        case TINYGLTF_MODE_TRIANGLE_FAN: return fmt::format("TRIANGLE_FAN ({})", TINYGLTF_MODE_TRIANGLE_FAN);
+        default: return fmt::format("UNKNOWN ({})", primitiveMode);
         }
     }
 
@@ -388,7 +388,7 @@ private:
 
         if (color.size() != expectedLength) {
             throw std::invalid_argument(
-                std::format(
+                fmt::format(
                     "color vector is of length {} as opposed to the expected length {}", 
                     color.size(), 
                     expectedLength
@@ -463,13 +463,13 @@ private:
     static void convertTriangles(iv_root_t root, const iv_indices_t & positionIndices, const iv_indices_t & normalIndices)
     {
         if (positionIndices.size() != normalIndices.size()) {
-            throw std::invalid_argument(std::format("mismatching number of positions ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
+            throw std::invalid_argument(fmt::format("mismatching number of positions ({}) and normals ({})", positionIndices.size(), normalIndices.size()));
         }
 
         constexpr size_t triangle_strip_size{ 3U };
 
         if (positionIndices.size() % triangle_strip_size != 0) {
-            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangle size ({})", positionIndices.size(), triangle_strip_size));
+            throw std::invalid_argument(fmt::format("number of positions ({}) is not divisible by the triangle size ({})", positionIndices.size(), triangle_strip_size));
         }
 
         spdlog::trace("converting {} triangles from gltf primitive", positionIndices.size() / triangle_strip_size);
@@ -541,7 +541,9 @@ private:
         SoCoordinate3 * coords = new SoCoordinate3;
         coords->point.setNum(static_cast<int>(positions.size()));
         SbVec3f * ivPointsPtr = coords->point.startEditing();
-        std::memcpy(ivPointsPtr, &positions[0], sizeof(SbVec3f) * positions.size());
+        for (const position_t & position : positions) {
+            *ivPointsPtr++ = SbVec3f(position[0], position[1], position[2]);
+        }
         coords->point.finishEditing();
 
         root->addChild(coords);
@@ -588,7 +590,9 @@ private:
         SoMFVec3f normalVectors{};
         normalVectors.setNum(static_cast<int>(normals.size()));
         SbVec3f * normalVectorPos = normalVectors.startEditing();
-        std::memcpy(normalVectorPos, &normals[0], sizeof(SbVec3f) * normals.size());
+        for (const normal_t & normal : normals) {
+            *normalVectorPos++ = SbVec3f(normal[0], normal[1], normal[2]);
+        }
         normalVectors.finishEditing();
 
         SoNormal * normalNode = new SoNormal;
@@ -703,7 +707,7 @@ private:
     }
 
     template<class U, class T>
-    static constexpr std::vector<U> cast(const std::vector<T> & source)
+    static std::vector<U> cast(const std::vector<T> & source)
     {
         std::vector<U> target;
         target.reserve(source.size());
@@ -724,7 +728,7 @@ private:
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: return cast<gltf_index_t, uint8_t>(accessorContents<uint8_t>(accessor));
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: return cast<gltf_index_t, uint16_t>(accessorContents<uint16_t>(accessor));
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: return cast<gltf_index_t, uint32_t>(accessorContents<uint32_t>(accessor));
-            default: throw std::invalid_argument(std::format("component type {} is unsupported for indices", stringifyAccessorComponentType(accessor.componentType)));
+            default: throw std::invalid_argument(fmt::format("component type {} is unsupported for indices", stringifyAccessorComponentType(accessor.componentType)));
             }
         }
         else {
@@ -766,19 +770,19 @@ private:
         }
     }
 
-    static constexpr std::string stringifyAccessorType(int accessorType)
+    static std::string stringifyAccessorType(int accessorType)
     {
         switch (accessorType) {
-        case TINYGLTF_TYPE_VEC2: return std::format("VEC2 ({})", TINYGLTF_TYPE_VEC2);
-        case TINYGLTF_TYPE_VEC3: return std::format("VEC3 ({})", TINYGLTF_TYPE_VEC3);
-        case TINYGLTF_TYPE_VEC4: return std::format("VEC4 ({})", TINYGLTF_TYPE_VEC4);
-        case TINYGLTF_TYPE_MAT2: return std::format("MAT2 ({})", TINYGLTF_TYPE_MAT2);
-        case TINYGLTF_TYPE_MAT3: return std::format("MAT3 ({})", TINYGLTF_TYPE_MAT3);
-        case TINYGLTF_TYPE_MAT4: return std::format("MAT4 ({})", TINYGLTF_TYPE_MAT4);
-        case TINYGLTF_TYPE_SCALAR: return std::format("SCALAR ({})", TINYGLTF_TYPE_SCALAR);
-        case TINYGLTF_TYPE_VECTOR: return std::format("VECTOR ({})", TINYGLTF_TYPE_VECTOR);
-        case TINYGLTF_TYPE_MATRIX: return std::format("MATRIX ({})", TINYGLTF_TYPE_MATRIX);
-        default: return std::format("UNKNOWN ({})", accessorType);
+        case TINYGLTF_TYPE_VEC2: return fmt::format("VEC2 ({})", TINYGLTF_TYPE_VEC2);
+        case TINYGLTF_TYPE_VEC3: return fmt::format("VEC3 ({})", TINYGLTF_TYPE_VEC3);
+        case TINYGLTF_TYPE_VEC4: return fmt::format("VEC4 ({})", TINYGLTF_TYPE_VEC4);
+        case TINYGLTF_TYPE_MAT2: return fmt::format("MAT2 ({})", TINYGLTF_TYPE_MAT2);
+        case TINYGLTF_TYPE_MAT3: return fmt::format("MAT3 ({})", TINYGLTF_TYPE_MAT3);
+        case TINYGLTF_TYPE_MAT4: return fmt::format("MAT4 ({})", TINYGLTF_TYPE_MAT4);
+        case TINYGLTF_TYPE_SCALAR: return fmt::format("SCALAR ({})", TINYGLTF_TYPE_SCALAR);
+        case TINYGLTF_TYPE_VECTOR: return fmt::format("VECTOR ({})", TINYGLTF_TYPE_VECTOR);
+        case TINYGLTF_TYPE_MATRIX: return fmt::format("MATRIX ({})", TINYGLTF_TYPE_MATRIX);
+        default: return fmt::format("UNKNOWN ({})", accessorType);
         }
     }
 
@@ -788,7 +792,7 @@ private:
 
         if (accessor.type != accessorType) {
             throw std::domain_error(
-                std::format(
+                fmt::format(
                     "expected accessor type {} instead of {}",
                     stringifyAccessorType(accessorType),
                     stringifyAccessorType(accessor.type)
@@ -797,18 +801,18 @@ private:
         }
     }
 
-    static constexpr std::string stringifyAccessorComponentType(int accessorComponentType)
+    static std::string stringifyAccessorComponentType(int accessorComponentType)
     {
         switch (accessorComponentType) {
-        case TINYGLTF_COMPONENT_TYPE_BYTE: return std::format("BYTE ({})", TINYGLTF_COMPONENT_TYPE_BYTE);
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: return std::format("UNSIGNED_BYTE ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
-        case TINYGLTF_COMPONENT_TYPE_SHORT: return std::format("SHORT ({})", TINYGLTF_COMPONENT_TYPE_SHORT);
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: return std::format("UNSIGNED_SHORT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
-        case TINYGLTF_COMPONENT_TYPE_INT: return std::format("INT ({})", TINYGLTF_COMPONENT_TYPE_INT);
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: return std::format("UNSIGNED_INT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT);
-        case TINYGLTF_COMPONENT_TYPE_FLOAT: return std::format("FLOAT ({})", TINYGLTF_COMPONENT_TYPE_FLOAT);
-        case TINYGLTF_COMPONENT_TYPE_DOUBLE: return std::format("DOUBLE ({})", TINYGLTF_COMPONENT_TYPE_DOUBLE);
-        default: return std::format("UNKNOWN ({})", accessorComponentType);
+        case TINYGLTF_COMPONENT_TYPE_BYTE: return fmt::format("BYTE ({})", TINYGLTF_COMPONENT_TYPE_BYTE);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: return fmt::format("UNSIGNED_BYTE ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE);
+        case TINYGLTF_COMPONENT_TYPE_SHORT: return fmt::format("SHORT ({})", TINYGLTF_COMPONENT_TYPE_SHORT);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: return fmt::format("UNSIGNED_SHORT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
+        case TINYGLTF_COMPONENT_TYPE_INT: return fmt::format("INT ({})", TINYGLTF_COMPONENT_TYPE_INT);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: return fmt::format("UNSIGNED_INT ({})", TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT);
+        case TINYGLTF_COMPONENT_TYPE_FLOAT: return fmt::format("FLOAT ({})", TINYGLTF_COMPONENT_TYPE_FLOAT);
+        case TINYGLTF_COMPONENT_TYPE_DOUBLE: return fmt::format("DOUBLE ({})", TINYGLTF_COMPONENT_TYPE_DOUBLE);
+        default: return fmt::format("UNKNOWN ({})", accessorComponentType);
         }
     }
 
@@ -818,7 +822,7 @@ private:
 
         if (accessor.componentType != accessorComponentType) {
             throw std::domain_error(
-                std::format(
+                fmt::format(
                     "expected accessor component type {} instead of {}",
                     stringifyAccessorComponentType(accessorComponentType),
                     stringifyAccessorComponentType(accessor.componentType)
@@ -833,7 +837,7 @@ private:
         const int byteStride{ accessor.ByteStride(bufferView) };
         if (byteStride != sizeof(T)) {
             throw std::invalid_argument(
-                std::format(
+                fmt::format(
                     "mismatching size of the buffer's byte stride ({}) and the size of the target type ({})",
                     byteStride,
                     sizeof(T)
@@ -846,7 +850,7 @@ private:
     {
         if (byteOffset >= buffer.data.size()) {
             throw std::out_of_range(
-                std::format(
+                fmt::format(
                     "byte offset {} is outside of the range of a buffer with size {}",
                     byteOffset,
                     buffer.data.size()
@@ -859,7 +863,7 @@ private:
     {
         if (bytesToCopy > buffer.data.size() || byteOffset > buffer.data.size() - bytesToCopy) {
             throw std::out_of_range(
-                std::format(
+                fmt::format(
                     "byte offset ({}) plus the number of bytes to copy ({}) is beyond the length of the buffer ({})",
                     byteOffset,
                     bytesToCopy,
