@@ -23,6 +23,9 @@ class GltfIvWriter {
 public:
     GltfIvWriter(tinygltf::Model && gltfModel)
         : m_gltfModel{ std::move(gltfModel) }
+        , m_nodes{}
+        , m_meshes{}
+        , m_materials{}
     {
     }
 
@@ -30,10 +33,16 @@ public:
     {
         spdlog::trace("convert gltf model to open inventor and write it to file {} as {}", filename, writeBinary ? "binary" : "ascii");
         try {
+            m_nodes.clear();
+            m_meshes.clear();
+            m_materials.clear();
+
             iv_root_t root{ new SoSeparator };
             root->ref();
+
             convertModel(root);
             const bool success{ GltfIv::write(filename, root, writeBinary) };
+
             root->unref();
             return success;
         }
@@ -60,8 +69,9 @@ private:
     using normal_map_t = std::map<normal_t, iv_index_t>;
 
     using iv_root_t = gsl::not_null<SoSeparator *>;
+    using iv_material_t = gsl::not_null<SoMaterial *>;
 
-    void convertModel(iv_root_t root) const
+    void convertModel(iv_root_t root)
     {
         spdlog::stopwatch stopwatch;
         spdlog::trace("convert gltf model to open inventor model");
@@ -77,7 +87,7 @@ private:
         spdlog::debug("finished converting gltf model to open inventor model ({:.3} seconds)", stopwatch);
     }
 
-    void convertScene(iv_root_t root, const tinygltf::Scene & scene) const
+    void convertScene(iv_root_t root, const tinygltf::Scene & scene)
     {
         spdlog::trace("converting gltf scene with name '{}'", scene.name);
 
@@ -88,7 +98,7 @@ private:
         root->addChild(sceneRoot);
     }
 
-    void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices) const
+    void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices)
     {
         spdlog::trace("converting {} gltf nodes", nodeIndices.size());
 
@@ -97,36 +107,53 @@ private:
             nodeIndices.cend(),
             [this, root] (int nodeIndex)
             {
-                convertNode(root, m_gltfModel.nodes.at(static_cast<size_t>(nodeIndex)));
+                convertNode(root, static_cast<size_t>(nodeIndex));
             }
         );
     }
 
-    void convertNode(iv_root_t root, const tinygltf::Node & node) const
+    void convertNode(iv_root_t root, size_t nodeIndex)
     {
-        spdlog::trace("converting gltf node with name '{}'", node.name);
+        spdlog::trace("converting gltf node with index {}", nodeIndex);
 
-        if (hasZeroScale(node)) {
-            spdlog::debug("skipping gltf node with zero scale");
-            return;
+        if (m_nodes.contains(nodeIndex)) {
+            spdlog::debug("re-using already converted gltf node with index {}", nodeIndex);
+            root->addChild(m_nodes.at(nodeIndex));
         }
+        else {
+            const tinygltf::Node node{ m_gltfModel.nodes.at(nodeIndex) };
+            spdlog::debug("converting gltf node with name '{}'", node.name);
 
-        SoSeparator * nodeRoot{ new SoSeparator };
+            if (hasZeroScale(node)) {
+                spdlog::debug("skipping gltf node with zero scale");
+                return;
+            }
 
-        convertTransform(nodeRoot, node);
-        convertScale(nodeRoot, node);
-        convertRotation(nodeRoot, node);
-        convertTranslation(nodeRoot, node);
+            SoSeparator * nodeRoot{ new SoSeparator };
 
-        if (node.mesh >= 0) {
-            convertMesh(nodeRoot, m_gltfModel.meshes.at(static_cast<size_t>(node.mesh)));
+            convertTransform(nodeRoot, node);
+            convertScale(nodeRoot, node);
+            convertRotation(nodeRoot, node);
+            convertTranslation(nodeRoot, node);
+
+            if (hasMesh(node)) {
+                convertMesh(nodeRoot, static_cast<size_t>(node.mesh));
+            }
+
+            if (!node.children.empty()) {
+                convertNodes(nodeRoot, node.children);
+            }
+
+            root->addChild(nodeRoot);
+            m_nodes.insert(std::make_pair(nodeIndex, nodeRoot));
         }
-        convertNodes(nodeRoot, node.children);
-
-        root->addChild(nodeRoot);
     }
 
-    static bool hasZeroScale(const tinygltf::Node & node)
+    static inline bool hasMesh(const tinygltf::Node & node) {
+        return node.mesh >= 0;
+    }
+
+    static inline bool hasZeroScale(const tinygltf::Node & node)
     {
         return hasScale(node) && node.scale[0] == 0.0 && node.scale[1] == 0.0 && node.scale[2] == 0.0;
     }
@@ -242,20 +269,32 @@ private:
     }
 
 
-    void convertMesh(iv_root_t root, const tinygltf::Mesh & mesh) const
+    void convertMesh(iv_root_t root, size_t meshIndex)
     {
-        spdlog::trace("converting gltf mesh with name '{}'", mesh.name);
+        spdlog::trace("converting gltf mesh with index {}", meshIndex);
+        if (m_meshes.contains(meshIndex)) {
+            spdlog::debug("re-using already converted gltf mesh with index {}", meshIndex);
+            root->addChild(m_meshes.at(meshIndex));
+        }
+        else {
+            const tinygltf::Mesh mesh{ m_gltfModel.meshes.at(meshIndex) };
 
-        const std::vector<tinygltf::Primitive> & primitives{ mesh.primitives };
+            SoSeparator * meshNode{ new SoSeparator };
 
-        std::for_each(
-            primitives.cbegin(),
-            primitives.cend(),
-            [this, root] (const tinygltf::Primitive & primitive)
-            {
-                convertPrimitive(root, primitive);
-            }
-        );
+            const std::vector<tinygltf::Primitive> & primitives{ mesh.primitives };
+
+            std::for_each(
+                primitives.cbegin(),
+                primitives.cend(),
+                [this, meshNode] (const tinygltf::Primitive & primitive)
+                {
+                    convertPrimitive(meshNode, primitive);
+                }
+            );
+
+            root->addChild(meshNode);
+            m_meshes.insert(std::make_pair(meshIndex, meshNode));
+        }
     }
 
     static constexpr std::string stringifyPrimitiveMode(int primitiveMode)
@@ -272,7 +311,7 @@ private:
         }
     }
 
-    void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
+    void convertPrimitive(iv_root_t root, const tinygltf::Primitive & primitive)
     {
         spdlog::trace("converting gltf primitive with mode {}", stringifyPrimitiveMode(primitive.mode));
 
@@ -285,7 +324,7 @@ private:
         }
     }
 
-    void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive) const
+    void convertTrianglesPrimitive(iv_root_t root, const tinygltf::Primitive & primitive)
     {
         spdlog::trace("converting gltf triangles primitive {}");
 
@@ -293,10 +332,10 @@ private:
         convertTriangles(root, primitive);
     }
 
-    void convertMaterial(iv_root_t root, const tinygltf::Primitive & primitive) const
+    void convertMaterial(iv_root_t root, const tinygltf::Primitive & primitive)
     {
         if (hasMaterial(primitive)) {
-            convertMaterial(root, m_gltfModel.materials.at(static_cast<size_t>(primitive.material)));
+            convertMaterial(root, static_cast<size_t>(primitive.material));
         }
     }
 
@@ -305,13 +344,21 @@ private:
         return primitive.material >= 0;
     }
 
-    static void convertMaterial(iv_root_t root, const tinygltf::Material & material)
+    void convertMaterial(iv_root_t root, int materialIndex)
     {
-        spdlog::trace("converting gltf material with name '{}'", material.name);
+        spdlog::trace("converting gltf material with index {}", materialIndex);
+        if (m_materials.contains(materialIndex)) {
+            spdlog::debug("re-using already converted gltf material with index {}", materialIndex);
+            root->addChild(m_materials.at(materialIndex));
+        }
+        else {
+            const tinygltf::Material material{ m_gltfModel.materials.at(materialIndex) };
 
-        SoMaterial * materialNode = new SoMaterial;
-        materialNode->diffuseColor = diffuseColor(material);
-        root->addChild(materialNode);
+            SoMaterial * materialNode = new SoMaterial;
+            materialNode->diffuseColor = diffuseColor(material);
+            root->addChild(materialNode);
+            m_materials.insert(std::make_pair(materialIndex, materialNode));
+        }
 
         SoMaterialBinding * materialBinding = new SoMaterialBinding;
         materialBinding->value = SoMaterialBinding::Binding::OVERALL;
@@ -356,9 +403,7 @@ private:
         constexpr size_t triangle_strip_size{ 3U };
 
         if (positionIndices.size() % triangle_strip_size != 0) {
-            //throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size));
-            spdlog::warn("number of positions ({}) is not divisible by the triangel size", positionIndices.size(), triangle_strip_size);
-            return;
+            throw std::invalid_argument(std::format("number of positions ({}) is not divisible by the triangle size ({})", positionIndices.size(), triangle_strip_size));
         }
 
         spdlog::trace("converting {} triangles from gltf primitive", positionIndices.size() / triangle_strip_size);
@@ -805,4 +850,7 @@ private:
     }
 
     const tinygltf::Model m_gltfModel;
+    std::unordered_map<size_t, iv_root_t> m_nodes;
+    std::unordered_map<size_t, iv_root_t> m_meshes;
+    std::unordered_map<size_t, iv_material_t> m_materials;
 };
