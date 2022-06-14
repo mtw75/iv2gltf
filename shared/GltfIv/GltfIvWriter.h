@@ -373,6 +373,7 @@ private:
             addName(materialNode, material.name);
 
             materialNode->diffuseColor = diffuseColor(material);
+            materialNode->transparency = transparency(material);
             materialNode->emissiveColor = emissiveColor(material);
             root->addChild(materialNode);
             m_materials.insert(std::make_pair(materialIndex, materialNode));
@@ -403,6 +404,8 @@ private:
         const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
 
         ensureColorVectorLength(baseColorFactor, 4U);
+        
+        spdlog::debug("extracting diffuse color ({:.4}, {:.4}, {:.4}) from gltf material", baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]);
 
         return SbColor{
             static_cast<float>(baseColorFactor[0]),
@@ -411,13 +414,28 @@ private:
         };
     }
 
+    static float transparency(const tinygltf::Material & material)
+    {
+        spdlog::trace("extracting transparency color from gltf material");
+
+        const std::vector<double> & baseColorFactor{ material.pbrMetallicRoughness.baseColorFactor };
+
+        ensureColorVectorLength(baseColorFactor, 4U);
+
+        spdlog::debug("extracting transparency ({:.4}) from gltf material", baseColorFactor[3]);
+
+        return static_cast<float>(baseColorFactor[3]);
+    }
+
     static SbColor emissiveColor(const tinygltf::Material & material)
     {
-        spdlog::trace("extracting diffuse color from gltf material");
+        spdlog::trace("extracting emissive color from gltf material");
 
         const std::vector<double> & emissiveFactor{ material.emissiveFactor };
 
         ensureColorVectorLength(emissiveFactor, 3U);
+
+        spdlog::debug("extracting emissive color ({:.4}, {:.4}, {:.4}) from gltf material", emissiveFactor[0], emissiveFactor[1], emissiveFactor[2]);
 
         return SbColor{
             static_cast<float>(emissiveFactor[0]),
