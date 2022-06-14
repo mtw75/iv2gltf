@@ -21,7 +21,7 @@
 
 class GltfIvWriter {
 public:
-    GltfIvWriter(tinygltf::Model && gltfModel) 
+    GltfIvWriter(tinygltf::Model && gltfModel)
         : m_gltfModel{ std::move(gltfModel) }
     {
     }
@@ -30,7 +30,7 @@ public:
     {
         spdlog::trace("convert gltf model to open inventor and write it to file {} as {}", filename, writeBinary ? "binary" : "ascii");
         try {
-            iv_root_t root { new SoSeparator };
+            iv_root_t root{ new SoSeparator };
             root->ref();
             convertModel(root);
             const bool success{ GltfIv::write(filename, root, writeBinary) };
@@ -60,7 +60,7 @@ private:
     using normal_map_t = std::map<normal_t, iv_index_t>;
 
     using iv_root_t = gsl::not_null<SoSeparator *>;
-    
+
     void convertModel(iv_root_t root) const
     {
         spdlog::stopwatch stopwatch;
@@ -112,12 +112,12 @@ private:
         }
 
         SoSeparator * nodeRoot{ new SoSeparator };
-        
+
         convertTransform(nodeRoot, node);
         convertScale(nodeRoot, node);
         convertRotation(nodeRoot, node);
         convertTranslation(nodeRoot, node);
-        
+
         if (node.mesh >= 0) {
             convertMesh(nodeRoot, m_gltfModel.meshes.at(static_cast<size_t>(node.mesh)));
         }
@@ -136,15 +136,15 @@ private:
         if (hasTransform(node)) {
             spdlog::trace("converting transform [{:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4};] for gltf node",
                 node.matrix[0], node.matrix[1], node.matrix[2], node.matrix[3],
-                node.matrix[4], node.matrix[5], node.matrix[6], node.matrix[7], 
-                node.matrix[8], node.matrix[9], node.matrix[10], node.matrix[11], 
+                node.matrix[4], node.matrix[5], node.matrix[6], node.matrix[7],
+                node.matrix[8], node.matrix[9], node.matrix[10], node.matrix[11],
                 node.matrix[12], node.matrix[13], node.matrix[14], node.matrix[15]
             );
 
             SoTransform * transformNode{ new SoTransform };
 
             transformNode->setMatrix(
-                SbMatrix{ 
+                SbMatrix{
                     static_cast<float>(node.matrix[0]), static_cast<float>(node.matrix[1]), static_cast<float>(node.matrix[2]), static_cast<float>(node.matrix[3]),
                     static_cast<float>(node.matrix[4]), static_cast<float>(node.matrix[5]), static_cast<float>(node.matrix[6]), static_cast<float>(node.matrix[7]),
                     static_cast<float>(node.matrix[8]), static_cast<float>(node.matrix[9]), static_cast<float>(node.matrix[10]), static_cast<float>(node.matrix[11]),
@@ -154,7 +154,6 @@ private:
 
             root->addChild(transformNode);
         }
-        
     }
 
     inline static bool hasTransform(const tinygltf::Node & node)
@@ -328,7 +327,7 @@ private:
         return SbColor{
             static_cast<float>(baseColorFactor[0]),
             static_cast<float>(baseColorFactor[1]),
-            static_cast<float>(baseColorFactor[2]) 
+            static_cast<float>(baseColorFactor[2])
         };
     }
 
@@ -419,7 +418,7 @@ private:
 
         convertPositions(root, uniquePositions);
 
-        return positionIndices( positions, positionMap(uniquePositions));
+        return positionIndices(positions, positionMap(uniquePositions));
     }
 
     static void convertPositions(iv_root_t root, const positions_t & positions)
@@ -572,7 +571,7 @@ private:
             std::back_inserter(positionIndices),
             [&positionMap] (const position_t & position)
             {
-                return positionMap.at(position);               
+                return positionMap.at(position);
             }
         );
 
@@ -592,7 +591,7 @@ private:
         return positionMap;
     }
 
-    template<class U, class T> 
+    template<class U, class T>
     static constexpr std::vector<U> cast(const std::vector<T> & source)
     {
         std::vector<U> target;
@@ -632,11 +631,12 @@ private:
             ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
             ensureAccessorComponentType(accessor, TINYGLTF_COMPONENT_TYPE_FLOAT);
             return accessorContents<position_t>(accessor);
-        } else {
+        }
+        else {
             spdlog::warn("positions accessor at index {} not found", accessorIndex);
             return {};
         }
-        
+
     }
 
     normals_t normals(const tinygltf::Primitive & primitive) const
@@ -648,7 +648,8 @@ private:
             ensureAccessorType(accessor, TINYGLTF_TYPE_VEC3);
             ensureAccessorComponentType(accessor, TINYGLTF_COMPONENT_TYPE_FLOAT);
             return accessorContents<normal_t>(accessor);
-        } else {
+        }
+        else {
             spdlog::warn("normals accessor at index {} not found", accessorIndex);
             return {};
         }
@@ -677,8 +678,8 @@ private:
         if (accessor.type != accessorType) {
             throw std::domain_error(
                 std::format(
-                    "expected accessor type {} instead of {}", 
-                    stringifyAccessorType(accessorType), 
+                    "expected accessor type {} instead of {}",
+                    stringifyAccessorType(accessorType),
                     stringifyAccessorType(accessor.type)
                 )
             );
@@ -707,8 +708,8 @@ private:
         if (accessor.componentType != accessorComponentType) {
             throw std::domain_error(
                 std::format(
-                    "expected accessor component type {} instead of {}", 
-                    stringifyAccessorComponentType(accessorComponentType), 
+                    "expected accessor component type {} instead of {}",
+                    stringifyAccessorComponentType(accessorComponentType),
                     stringifyAccessorComponentType(accessor.componentType)
                 )
             );
@@ -730,7 +731,7 @@ private:
         }
     }
 
-    static void ensureByteOffsetWithinBuffer( size_t byteOffset, const tinygltf::Buffer & buffer)
+    static void ensureByteOffsetWithinBuffer(size_t byteOffset, const tinygltf::Buffer & buffer)
     {
         if (byteOffset >= buffer.data.size()) {
             throw std::out_of_range(
@@ -787,7 +788,7 @@ private:
 
         std::vector<T> contents;
         contents.resize(accessor.count);
-        
+
         std::memcpy(&contents[0], &buffer.data[byteOffset], bytesToCopy);
 
         return contents;
