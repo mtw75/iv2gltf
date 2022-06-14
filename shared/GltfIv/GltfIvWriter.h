@@ -6,6 +6,7 @@
 #include <Inventor/nodes/SoScale.h>
 #include <Inventor/nodes/SoRotation.h>
 #include <Inventor/nodes/SoTranslation.h>
+#include <Inventor/nodes/SoTransform.h>
 
 #include <Inventor/nodes/SoCoordinate3.h>
 #include <Inventor/nodes/SoNormal.h>
@@ -113,6 +114,9 @@ private:
         SoSeparator * nodeRoot{ new SoSeparator };
         
         convertTransform(nodeRoot, node);
+        convertScale(nodeRoot, node);
+        convertRotation(nodeRoot, node);
+        convertTranslation(nodeRoot, node);
         
         if (node.mesh >= 0) {
             convertMesh(nodeRoot, m_gltfModel.meshes.at(static_cast<size_t>(node.mesh)));
@@ -129,9 +133,33 @@ private:
 
     static void convertTransform(iv_root_t root, const tinygltf::Node & node)
     {
-        convertScale(root, node);
-        convertRotation(root, node);
-        convertTranslation(root, node);
+        if (hasTransform(node)) {
+            spdlog::trace("converting transform [{:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4}; {:.4}, {:.4}, {:.4}, {:.4};] for gltf node",
+                node.matrix[0], node.matrix[1], node.matrix[2], node.matrix[3],
+                node.matrix[4], node.matrix[5], node.matrix[6], node.matrix[7], 
+                node.matrix[8], node.matrix[9], node.matrix[10], node.matrix[11], 
+                node.matrix[12], node.matrix[13], node.matrix[14], node.matrix[15]
+            );
+
+            SoTransform * transformNode{ new SoTransform };
+
+            transformNode->setMatrix(
+                SbMatrix{ 
+                    static_cast<float>(node.matrix[0]), static_cast<float>(node.matrix[1]), static_cast<float>(node.matrix[2]), static_cast<float>(node.matrix[3]),
+                    static_cast<float>(node.matrix[4]), static_cast<float>(node.matrix[5]), static_cast<float>(node.matrix[6]), static_cast<float>(node.matrix[7]),
+                    static_cast<float>(node.matrix[8]), static_cast<float>(node.matrix[9]), static_cast<float>(node.matrix[10]), static_cast<float>(node.matrix[11]),
+                    static_cast<float>(node.matrix[12]), static_cast<float>(node.matrix[13]), static_cast<float>(node.matrix[14]), static_cast<float>(node.matrix[15])
+                }
+            );
+
+            root->addChild(transformNode);
+        }
+        
+    }
+
+    inline static bool hasTransform(const tinygltf::Node & node)
+    {
+        return node.matrix.size() == 16U;
     }
 
     static void convertScale(iv_root_t root, const tinygltf::Node & node)
