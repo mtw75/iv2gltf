@@ -344,7 +344,7 @@ private:
         return primitive.material >= 0;
     }
 
-    void convertMaterial(iv_root_t root, int materialIndex)
+    void convertMaterial(iv_root_t root, size_t materialIndex)
     {
         spdlog::trace("converting gltf material with index {}", materialIndex);
         if (m_materials.contains(materialIndex)) {
