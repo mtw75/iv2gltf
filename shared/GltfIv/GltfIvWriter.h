@@ -69,6 +69,7 @@ private:
     using normal_map_t = std::map<normal_t, iv_index_t>;
 
     using iv_root_t = gsl::not_null<SoSeparator *>;
+    using iv_base_t = gsl::not_null<SoBase *>;
     using iv_material_t = gsl::not_null<SoMaterial *>;
 
     void convertModel(iv_root_t root)
@@ -93,9 +94,18 @@ private:
 
         SoSeparator * sceneRoot{ new SoSeparator };
 
+        addName(sceneRoot, scene.name);
         convertNodes(sceneRoot, scene.nodes);
 
         root->addChild(sceneRoot);
+    }
+
+    void addName(iv_base_t root, std::string name)
+    {
+        if (!name.empty()) {
+            SbString nameString{ name.c_str() };
+            root->setName(SbName{ nameString });
+        }
     }
 
     void convertNodes(iv_root_t root, const std::vector<int> & nodeIndices)
@@ -130,6 +140,8 @@ private:
             }
 
             SoSeparator * nodeRoot{ new SoSeparator };
+
+            addName(nodeRoot, node.name);
 
             convertTransform(nodeRoot, node);
             convertScale(nodeRoot, node);
@@ -281,6 +293,8 @@ private:
 
             SoSeparator * meshNode{ new SoSeparator };
 
+            addName(meshNode, mesh.name);
+
             const std::vector<tinygltf::Primitive> & primitives{ mesh.primitives };
 
             std::for_each(
@@ -355,6 +369,9 @@ private:
             const tinygltf::Material material{ m_gltfModel.materials.at(materialIndex) };
 
             SoMaterial * materialNode = new SoMaterial;
+
+            addName(materialNode, material.name);
+
             materialNode->diffuseColor = diffuseColor(material);
             materialNode->emissiveColor = emissiveColor(material);
             root->addChild(materialNode);
