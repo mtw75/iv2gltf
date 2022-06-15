@@ -17,8 +17,9 @@ target_compile_options(gltf2iv
           /W4 /WX
 		  >
 )
-
+if(WIN32)
 set_property(TARGET gltf2iv
              PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 install(TARGETS gltf2iv DESTINATION .)
