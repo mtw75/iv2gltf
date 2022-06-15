@@ -12,9 +12,14 @@ set(SRC
 	GltfIvWriter.h
 )
 
-add_library(GltfIv ${SRC})
 
-target_link_libraries(GltfIv Coin::Coin fmt::fmt-header-only spdlog::spdlog_header_only Microsoft.GSL::GSL)
+if (WIN32)
+	add_library(GltfIv STATIC ${SRC})
+else()
+	add_library(GltfIv SHARED ${SRC})
+endif()
+
+target_link_libraries(GltfIv Coin::Coin fmt::fmt-header-only spdlog::spdlog_header_only Microsoft.GSL::GSL ${CMAKE_DL_LIBS})
 
 target_include_directories(GltfIv 
 	PUBLIC ${TINYGLTF_INCLUDE_DIRS}
