@@ -424,7 +424,7 @@ private:
 
         spdlog::debug("extracting transparency ({:.4}) from gltf material", baseColorFactor[3]);
 
-        return static_cast<float>(baseColorFactor[3]);
+        return 1.0f - static_cast<float>(baseColorFactor[3]);
     }
 
     static SbColor emissiveColor(const tinygltf::Material & material)
