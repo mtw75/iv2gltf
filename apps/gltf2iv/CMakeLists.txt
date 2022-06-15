@@ -14,7 +14,7 @@ target_compile_options(gltf2iv
           -Wall -Wno-c++98-compat -Wno-c++98-compat-pedantic -Werror
 		  >
      $<$<CXX_COMPILER_ID:MSVC>:
-          /W4 /WX
+          /W4 /external:anglebrackets /external:W0 /WX
 		  >
 )
 if(WIN32)
